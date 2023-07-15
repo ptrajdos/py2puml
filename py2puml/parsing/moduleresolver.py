@@ -1,7 +1,9 @@
 from inspect import isclass
 from functools import reduce
-from typing import Type, Iterable, List, NamedTuple
+from typing import Type, Iterable, List, NamedTuple, Tuple
 from types import ModuleType
+
+from py2puml.parsing.compoundtypesplitter import CompoundTypeSplitter, SPLITTING_CHARACTERS
 
 
 class NamespacedType(NamedTuple):
@@ -97,3 +99,34 @@ class ModuleResolver:
 
     def get_module_full_name(self) -> str:
         return self.module.__name__
+
+    def shorten_compound_type_annotation(self, type_annotation: str) -> Tuple[str, List[str]]:
+        '''
+        In the string representation of a compound type annotation, the elementary types can be prefixed by their packages or sub-packages.
+        Like in 'Dict[datetime.datetime,typing.List[Worker]]'. This function returns a tuple of 2 values:
+        - a string representation with shortened types for display purposes in the PlantUML documentation: 'Dict[datetime, List[Worker]]'
+          (note: a space is inserted after each coma for readability sake)
+        - a list of the fully-qualified types involved in the annotation: ['typing.Dict', 'datetime.datetime', 'typing.List', 'mymodule.Worker']
+        '''
+        compound_type_parts: List[str] = CompoundTypeSplitter(type_annotation,self.module.__name__).get_parts()
+        compound_short_type_parts: List[str] = []
+        associated_types: List[str] = []
+        for compound_type_part in compound_type_parts:
+            # characters like '[', ']', ','
+            if compound_type_part in SPLITTING_CHARACTERS:
+                compound_short_type_parts.append(compound_type_part)
+                if compound_type_part == ',':
+                    compound_short_type_parts.append(' ')
+            # replaces each type definition by its short class name
+            else:
+                full_namespaced_type, short_type = self.resolve_full_namespace_type(
+                    compound_type_part
+                )
+                if short_type is None:
+                    raise ValueError(
+                        f'Could not resolve type {compound_type_part} in module {self.module}: it needs to be imported explicitely.')
+                else:
+                    compound_short_type_parts.append(short_type)
+                associated_types.append(full_namespaced_type)
+
+        return ''.join(compound_short_type_parts), associated_types

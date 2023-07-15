@@ -7,11 +7,9 @@ from textwrap import dedent
 
 from pytest import mark
 
-from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor, SignatureArgumentsCollector, Argument, shorten_compound_type_annotation
-from py2puml.parsing.moduleresolver import ModuleResolver
+from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor, SignatureVariablesCollector, ClassVisitor, ModuleVisitor
 
 from tests.asserts.variable import assert_Variable
-from tests.py2puml.parsing.mockedinstance import MockedInstance
 from tests.modules.withmethods import withmethods
 
 
@@ -32,18 +30,18 @@ def test_SignatureVariablesCollector_collect_arguments():
     constructor_source: str = dedent(getsource(ParseMyConstructorArguments.__init__.__code__))
     constructor_ast: AST = parse(constructor_source)
 
-    collector = SignatureArgumentsCollector()
+    collector = SignatureVariablesCollector()
     collector.visit(constructor_ast)
 
     assert collector.class_self_id == 'me'
-    assert len(collector.arguments) == 7, 'all the arguments must be detected'
-    assert_Variable(collector.arguments[0], 'me', None, constructor_source)
-    assert_Variable(collector.arguments[1], 'an_int', 'int', constructor_source)
-    assert_Variable(collector.arguments[2], 'an_untyped', None, constructor_source)
-    assert_Variable(collector.arguments[3], 'a_compound_type', 'Tuple[float, Dict[str, List[bool]]]', constructor_source)
-    assert_Variable(collector.arguments[4], 'a_default_string', 'str', constructor_source)
-    assert_Variable(collector.arguments[5], 'args', None, constructor_source)
-    assert_Variable(collector.arguments[6], 'kwargs', None, constructor_source)
+    assert len(collector.variables) == 7, 'all the arguments must be detected'
+    assert_Variable(collector.variables[0], 'me', None, constructor_source)
+    assert_Variable(collector.variables[1], 'an_int', 'int', constructor_source)
+    assert_Variable(collector.variables[2], 'an_untyped', None, constructor_source)
+    assert_Variable(collector.variables[3], 'a_compound_type', 'Tuple[float, Dict[str, List[bool]]]', constructor_source)
+    assert_Variable(collector.variables[4], 'a_default_string', 'str', constructor_source)
+    assert_Variable(collector.variables[5], 'args', None, constructor_source)
+    assert_Variable(collector.variables[6], 'kwargs', None, constructor_source)
 
 @mark.parametrize(
     'class_self_id,assignment_code,annotation_as_str,self_attributes,variables', [
@@ -145,52 +143,6 @@ def test_AssignedVariablesCollector_multiple_assignments_separate_variable_from_
             assert variable.id == variable_id
             assert variable.type_expr == None, 'Python does not allow type annotation in multiple assignment'
 
-@mark.parametrize(['full_annotation', 'short_annotation', 'namespaced_definitions', 'module_dict'], [
-    (
-        # domain.people was imported, people.Person is used
-        'people.Person',
-        'Person',
-        ['domain.people.Person'],
-        {
-            '__name__': 'testmodule',
-            'people': {
-                'Person': {
-                    '__module__': 'domain.people',
-                    '__name__': 'Person'
-                }
-            }
-        }
-    ),
-    (
-        # combination of compound types
-        'Dict[id.Identifier,typing.List[domain.Person]]',
-        'Dict[Identifier, List[Person]]',
-        ['typing.Dict', 'id.Identifier', 'typing.List', 'domain.Person'],
-        {
-            '__name__': 'testmodule',
-            'Dict': Dict,
-            'List': List,
-            'id': {
-                'Identifier': {
-                    '__module__': 'id',
-                    '__name__': 'Identifier',
-                }
-            },
-            'domain': {
-                'Person': {
-                    '__module__': 'domain',
-                    '__name__': 'Person',
-                }
-            }
-        }
-    )
-])
-def test_shorten_compound_type_annotation(full_annotation: str, short_annotation, namespaced_definitions: List[str], module_dict: dict):
-    module_resolver = ModuleResolver(MockedInstance(module_dict))
-    shortened_annotation, full_namespaced_definitions = shorten_compound_type_annotation(full_annotation, module_resolver)
-    assert shortened_annotation == short_annotation
-    assert full_namespaced_definitions == namespaced_definitions
-
 
 class TestTypeVisitor(unittest.TestCase):
 
@@ -232,3 +184,22 @@ class TestTypeVisitor(unittest.TestCase):
         actual_rtype = visitor.visit(node)
         expected_rtype = 'Point'
         self.assertEqual(expected_rtype, actual_rtype)
+
+
+class TestClassVisitor(unittest.TestCase):
+
+    def test_class_with_methods(self):
+        class_source = getsource(withmethods.Point)
+        class_ast = parse(class_source)
+        visitor = ClassVisitor(withmethods.Point, 'tests.modules.withmethods')
+        visitor.visit(class_ast)
+
+        self.assertEqual('Point', visitor.class_name)
+
+        expected_attributes = ['PI', 'origin', 'coordinates', 'day_unit', 'hour_unit', 'time_resolution', 'x', 'y']
+        actual_attributes = visitor.class_attributes
+        self.assertCountEqual(expected_attributes, actual_attributes)
+
+        expected_methods = ['from_values', 'get_coordinates', '__init__', 'do_something']
+        actual_methods = [method.name for method in visitor.uml_methods]
+        self.assertCountEqual(expected_methods, actual_methods)

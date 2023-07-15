@@ -7,7 +7,7 @@ from ast import parse, AST
 from py2puml.domain.umlitem import UmlItem
 from py2puml.domain.umlclass import UmlClass, UmlAttribute, UmlMethod
 from py2puml.domain.umlrelation import UmlRelation, RelType
-from py2puml.parsing.astvisitors import shorten_compound_type_annotation, ClassVisitor
+from py2puml.parsing.astvisitors import ClassVisitor
 from py2puml.parsing.parseclassconstructor import parse_class_constructor
 from py2puml.parsing.moduleresolver import ModuleResolver
 
@@ -83,7 +83,7 @@ def inspect_static_attributes(
                     attr_type = concrete_type
             # compound type (tuples, lists, dictionaries, etc.)
             else:
-                attr_type, full_namespaced_definitions = shorten_compound_type_annotation(attr_raw_type, module_resolver)
+                attr_type, full_namespaced_definitions = module_resolver.shorten_compound_type_annotation(attr_raw_type)
                 relations_by_target_fqdn.update({
                     attr_fqn: UmlRelation(uml_class.fqn, attr_fqn, RelType.COMPOSITION)
                     for attr_fqn in full_namespaced_definitions
