@@ -100,7 +100,6 @@ def inspect_static_attributes(
 
 def inspect_methods(definition_methods: List, class_type: Type, root_module_name: str):
     """ This function parses a class using AST to identify methods. """
-    print(f'inspecting {class_type.__name__} from {class_type.__module__}')
     class_source: str = getsource(class_type)
     class_ast: AST = parse(class_source)
     visitor = ClassVisitor(class_type, root_module_name)

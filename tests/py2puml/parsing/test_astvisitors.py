@@ -7,10 +7,10 @@ from textwrap import dedent
 
 from pytest import mark
 
-from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor, SignatureVariablesCollector, ClassVisitor, ModuleVisitor
+from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor, SignatureVariablesCollector, ClassVisitor, BaseClassVisitor
 
 from tests.asserts.variable import assert_Variable
-from tests.modules.withmethods import withmethods
+from tests.modules.withmethods import withmethods, withinheritedmethods
 
 
 class ParseMyConstructorArguments:
@@ -203,3 +203,63 @@ class TestClassVisitor(unittest.TestCase):
         expected_methods = ['from_values', 'get_coordinates', '__init__', 'do_something']
         actual_methods = [method.name for method in visitor.uml_methods]
         self.assertCountEqual(expected_methods, actual_methods)
+
+        self.assertEqual(0, len(visitor.parent_classes_fqn))
+
+    def test_class_with_inherited_methods(self):
+        class_source = getsource(withinheritedmethods.ThreeDimensionalPoint)
+        class_ast = parse(class_source)
+        visitor = ClassVisitor(withinheritedmethods.ThreeDimensionalPoint, 'tests.modules.withmethods')
+        visitor.visit(class_ast)
+
+        self.assertEqual('ThreeDimensionalPoint', visitor.class_name)
+
+        expected_attributes = ['z']
+        actual_attributes = visitor.class_attributes
+        self.assertCountEqual(expected_attributes, actual_attributes)
+
+        expected_methods = ['__init__', 'move', 'check_positive']
+        actual_methods = [method.name for method in visitor.uml_methods]
+        self.assertCountEqual(expected_methods, actual_methods)
+
+        self.assertIn('Point', visitor.parent_classes_fqn)
+        self.assertEqual(1, len(visitor.parent_classes_fqn))
+
+    def test_class_with_inherited_methods_2(self):
+        class_source = getsource(withinheritedmethods.ThreeDimensionalCoordinates)
+        class_ast = parse(class_source)
+        visitor = ClassVisitor(withinheritedmethods.ThreeDimensionalCoordinates, 'tests.modules.withmethods')
+        visitor.visit(class_ast)
+
+        self.assertEqual('ThreeDimensionalCoordinates', visitor.class_name)
+
+        expected_attributes = ['z']
+        actual_attributes = visitor.class_attributes
+        self.assertCountEqual(expected_attributes, actual_attributes)
+
+        expected_methods = ['__init__', 'move', 'check_negative']
+        actual_methods = [method.name for method in visitor.uml_methods]
+        self.assertCountEqual(expected_methods, actual_methods)
+
+        self.assertIn('withmethods.withmethods.Coordinates', visitor.parent_classes_fqn)
+        self.assertEqual(1, len(visitor.parent_classes_fqn))
+
+
+class TestBaseClassVisitor(unittest.TestCase):
+
+    def test_name(self):
+        source_code = 'class DerivedClass(BaseClass):\n    pass'
+        ast = parse(source_code)
+        node = ast.body[0].bases[0]
+        visitor = BaseClassVisitor()
+        visitor.visit(node)
+        self.assertEqual('BaseClass', visitor.qualified_name)
+
+    def test_name_with_module(self):
+        source_code = 'class DerivedClass(package.module.BaseClass):\n    pass'
+        ast = parse(source_code)
+        node = ast.body[0].bases[0]
+        visitor = BaseClassVisitor()
+        visitor.visit(node)
+        self.assertEqual('package.module.BaseClass', visitor.qualified_name)
+

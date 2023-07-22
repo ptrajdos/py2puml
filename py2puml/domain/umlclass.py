@@ -5,9 +5,10 @@ from dataclasses import dataclass, field
 from pkgutil import walk_packages
 from pathlib import Path
 from importlib import import_module
-
+from ast import parse, NodeVisitor, ClassDef
 
 from py2puml.domain.umlitem import UmlItem
+import py2puml.parsing.astvisitors as astvisitors
 
 
 @dataclass
@@ -79,6 +80,18 @@ class PythonModule:
         path = Path(module_obj.__file__)
         return PythonModule(name=name, fully_qualified_name=fully_qualified_name, path=path)
 
+    def visit(self):
+        """ Visit AST node corresponding to the module in order to find classes """
+        with open(self.path, 'r') as fref:
+            content = fref.read()
+
+        ast = parse(content, filename=str(self.path))
+        visitor = ModuleVisitor(self.fully_qualified_name)
+        visitor.visit(ast)
+
+        for _class in visitor.classes:
+            self.classes.append(_class)
+
 
 @dataclass
 class PythonPackage:
@@ -141,3 +154,30 @@ class PythonPackage:
                 imported_module = import_module(name)
                 module = PythonModule.from_imported_module(imported_module)
                 self.modules.append(module)
+
+
+@dataclass
+class PythonClass:
+    name: str
+    attributes: List = field(default_factory=list)
+    methods: List = field(default_factory=list)
+
+
+class ModuleVisitor(NodeVisitor):
+
+    def __init__(self, root_fqn):
+        self.classes = []
+        self.enums = []
+        self.namedtuples = []
+        self.root_fqn = root_fqn
+
+    def visit_ClassDef(self, node: ClassDef):
+        class_type = getattr(import_module(self.root_fqn), node.name)
+        visitor = astvisitors.ClassVisitor(class_type, self.root_fqn)
+        visitor.visit(node)
+        _class = PythonClass(name=node.name)
+        for attribute in visitor.class_attributes:
+            _class.attributes.append(attribute)
+        for method in visitor.uml_methods:
+            _class.methods.append(method)
+        self.classes.append(_class)

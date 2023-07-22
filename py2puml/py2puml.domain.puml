@@ -11,6 +11,19 @@ class py2puml.domain.package.Package {
   children: List[Package]
   items_number: int
 }
+class py2puml.domain.umlclass.ModuleVisitor {
+  classes: None
+  enums: None
+  namedtuples: None
+  root_fqn: None
+  __init__(self, root_fqn)
+  visit_ClassDef(self, ClassDef node)
+}
+class py2puml.domain.umlclass.PythonClass {
+  name: str
+  attributes: List
+  methods: List
+}
 class py2puml.domain.umlclass.PythonModule {
   name: str
   fully_qualified_name: str

@@ -1,4 +1,3 @@
-import ast
 from typing import Dict, List, Tuple, Type
 from ast import (
     NodeVisitor, arg, expr, ClassDef,
@@ -10,9 +9,9 @@ from inspect import getsource, unwrap
 from textwrap import dedent
 from importlib import import_module
 
-from py2puml.domain.umlclass import UmlAttribute, UmlMethod
+import py2puml.domain.umlclass as umlclass
 from py2puml.domain.umlrelation import UmlRelation, RelType
-from py2puml.parsing.moduleresolver import ModuleResolver, NamespacedType
+from py2puml.parsing.moduleresolver import ModuleResolver
 
 Variable = namedtuple('Argument', ['id', 'type_expr'])
 
@@ -80,7 +79,8 @@ class ClassVisitor(NodeVisitor):
         self.root_fqn = root_fqn
         self.class_name: str = None
         self.class_attributes = []
-        self.uml_methods: List[UmlMethod] = []
+        self.uml_methods: List[umlclass.UmlMethod] = []
+        self.parent_classes_fqn = []
 
     def visit_Assign(self, node: Assign):
         """ Retrieve class attribute """
@@ -93,6 +93,12 @@ class ClassVisitor(NodeVisitor):
     def visit_ClassDef(self, node: ClassDef):
         """ Retrieve name of the class and base class if any """
         self.class_name = node.name
+        if node.bases:
+            for base in node.bases:
+                base_visitor = BaseClassVisitor()
+                base_visitor.visit(base)
+                self.parent_classes_fqn.append(base_visitor.qualified_name)
+
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: FunctionDef):
@@ -106,6 +112,36 @@ class ClassVisitor(NodeVisitor):
             constructor_visitor.visit(constructor_ast)
             for attribute in constructor_visitor.uml_attributes:
                 self.class_attributes.append(attribute.name)
+
+
+class BaseClassVisitor(NodeVisitor):
+
+    """ Node Visitor class for base class definition
+
+     This visitor is used for walking 'base' field of class definition node ClassDef. The name of the base class is
+     returned by the class property 'qualified_name'. Handles partially defined base class name, e.g. the class
+     definition 'class DerivedClassName(modname.BaseClassName):' will return 'modname.BaseClassName' as
+     'qualified_name'.
+
+     """
+
+    def __init__(self):
+        """ Class constructor
+
+        Elements of the qualified name are collected in a list """
+        self.elements = []
+
+    def visit_Name(self, node: Name):
+        self.elements.append(node.id)
+
+    def visit_Attribute(self, node: Attribute):
+        """ Recursive call with 'generic_visit' so that Attributes are traversed """
+        self.generic_visit(node)
+        self.elements.append(node.attr)
+
+    @property
+    def qualified_name(self):
+        return '.'.join(self.elements)
 
 
 class TypeVisitor(NodeVisitor):
@@ -149,7 +185,7 @@ class MethodVisitor(NodeVisitor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.variables_namespace: List[Variable] = []
-        self.uml_method: UmlMethod
+        self.uml_method: umlclass.UmlMethod
 
     def visit_FunctionDef(self, node: FunctionDef):
         decorators = [decorator.id for decorator in node.decorator_list]
@@ -159,7 +195,7 @@ class MethodVisitor(NodeVisitor):
         arguments_collector.visit(node)
         self.variables_namespace = arguments_collector.variables
 
-        self.uml_method = UmlMethod(name=node.name, is_static=is_static, is_class=is_class)
+        self.uml_method = umlclass.UmlMethod(name=node.name, is_static=is_static, is_class=is_class)
 
         for argument in arguments_collector.variables:
             if argument.id == arguments_collector.class_self_id:
@@ -190,7 +226,7 @@ class ConstructorVisitor(NodeVisitor):
         self.module_resolver = module_resolver
         self.class_self_id: str
         self.variables_namespace: List[Variable] = []
-        self.uml_attributes: List[UmlAttribute] = []
+        self.uml_attributes: List[umlclass.UmlAttribute] = []
         self.uml_relations_by_target_fqn: Dict[str, UmlRelation] = {}
         # self.namespaced_types = namespaced_types
 
@@ -241,7 +277,7 @@ class ConstructorVisitor(NodeVisitor):
         short_type, full_namespaced_definitions = self.derive_type_annotation_details(node.annotation)
         # if any, there is at most one self-assignment
         for variable in variables_collector.self_attributes:
-            self.uml_attributes.append(UmlAttribute(variable.id, short_type, static=False))
+            self.uml_attributes.append(umlclass.UmlAttribute(variable.id, short_type, static=False))
             self.extend_relations(full_namespaced_definitions)
 
         # if any, there is at most one typed variable added to the scope
@@ -258,13 +294,13 @@ class ConstructorVisitor(NodeVisitor):
                 assigned_variable = self.get_from_namespace(node.value.id)
                 if assigned_variable is not None:
                     short_type, full_namespaced_definitions = self.derive_type_annotation_details(assigned_variable.type_expr)
-                    attribute = UmlAttribute(variables_collector.self_attributes[0].id, short_type, False)
+                    attribute = umlclass.UmlAttribute(variables_collector.self_attributes[0].id, short_type, False)
                     self.uml_attributes.append(attribute)
                     self.extend_relations(full_namespaced_definitions)
             else:
                 for variable in variables_collector.self_attributes:
                     short_type, full_namespaced_definitions = self.derive_type_annotation_details(variable.type_expr)
-                    self.uml_attributes.append(UmlAttribute(variable.id, short_type, static=False))
+                    self.uml_attributes.append(umlclass.UmlAttribute(variable.id, short_type, static=False))
                     self.extend_relations(full_namespaced_definitions)
 
             # other assignments were done in new variables that can shadow existing ones
@@ -285,7 +321,6 @@ class ConstructorVisitor(NodeVisitor):
             return short_type, [full_namespaced_type]
         # definition from module
         elif isinstance(annotation, Attribute):
-            print(annotation.attr)
             source_segment = get_source_segment(self.constructor_source, annotation)
             full_namespaced_type, short_type = self.module_resolver.resolve_full_namespace_type(source_segment)
             return short_type, [full_namespaced_type]
@@ -295,19 +330,3 @@ class ConstructorVisitor(NodeVisitor):
             short_type, associated_types = self.module_resolver.shorten_compound_type_annotation(source_segment)
             return short_type, associated_types
         return None, []
-
-
-class ModuleVisitor(ast.NodeVisitor):
-
-    def __init__(self):
-        self.namespaced_types = []
-        self.classes = {}
-
-    def visit_ClassDef(self, node: ClassDef):
-        self.classes[node.name] = node
-        class_visitor = ClassVisitor
-
-    def visit_ImportFrom(self, node: ImportFrom):
-        for alias in node.names:
-            namespaced_type = NamespacedType('.'.join([node.module, alias.name]), alias.name)
-            self.namespaced_types.append(namespaced_type)

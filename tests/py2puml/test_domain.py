@@ -18,6 +18,19 @@ class TestPythonModule(unittest.TestCase):
         self.assertEqual('tests.modules.withabstract', module.fully_qualified_name)
         self.assertEqual(MODULES_DIR / 'withabstract.py', module.path)
 
+    def test_visit(self):
+        module = PythonModule(
+            name='withconstructor',
+            fully_qualified_name='tests.modules.withconstructor',
+            path=MODULES_DIR / 'withconstructor.py'
+        )
+        module.visit()
+
+        expected_class_names = ['Coordinates', 'Point']
+        actual_class_names = [_class.name for _class in module.classes]
+
+        self.assertCountEqual(expected_class_names, actual_class_names)
+
 
 class TestPythonPackage(unittest.TestCase):
 
