@@ -11,6 +11,19 @@ class py2puml.domain.package.Package {
   children: List[Package]
   items_number: int
 }
+class py2puml.domain.umlclass.PythonModule {
+  name: str
+  fully_qualified_name: str
+  path: Path
+  classes: List
+}
+class py2puml.domain.umlclass.PythonPackage {
+  path: Path
+  name: str
+  fully_qualified_name: str
+  modules: List[PythonModule]
+  packages: List[PythonPackage]
+}
 class py2puml.domain.umlclass.UmlAttribute {
   name: str
   type: str
@@ -49,6 +62,8 @@ class py2puml.domain.umlrelation.UmlRelation {
   type: RelType
 }
 py2puml.domain.package.Package *-- py2puml.domain.package.Package
+py2puml.domain.umlclass.PythonPackage *-- py2puml.domain.umlclass.PythonModule
+py2puml.domain.umlclass.PythonPackage *-- py2puml.domain.umlclass.PythonPackage
 py2puml.domain.umlclass.UmlClass *-- py2puml.domain.umlclass.UmlAttribute
 py2puml.domain.umlclass.UmlClass *-- py2puml.domain.umlclass.UmlMethod
 py2puml.domain.umlitem.UmlItem <|-- py2puml.domain.umlclass.UmlClass
