@@ -8,7 +8,7 @@ from textwrap import dedent
 from pytest import mark
 
 from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor, SignatureVariablesCollector, ClassVisitor, BaseClassVisitor
-
+from py2puml.domain.umlclass import ClassAttribute, InstanceAttribute
 from tests.asserts.variable import assert_Variable
 from tests.modules.withmethods import withmethods, withinheritedmethods
 
@@ -196,8 +196,16 @@ class TestClassVisitor(unittest.TestCase):
 
         self.assertEqual('Point', visitor.class_name)
 
-        expected_attributes = ['PI', 'origin', 'coordinates', 'day_unit', 'hour_unit', 'time_resolution', 'x', 'y']
-        actual_attributes = visitor.class_attributes
+        expected_attributes = [
+            ClassAttribute(name='PI', _type='float'),
+            ClassAttribute(name='origin'),
+            InstanceAttribute(name='coordinates', _type='Coordinates'),
+            InstanceAttribute(name='day_unit', _type='TimeUnit'),
+            InstanceAttribute(name='hour_unit', _type='TimeUnit'),
+            InstanceAttribute(name='time_resolution', _type='Tuple[str, TimeUnit]'),
+            InstanceAttribute(name='x', _type='int'),
+            InstanceAttribute(name='y', _type='Tuple[bool]')]
+        actual_attributes = visitor.attributes
         self.assertCountEqual(expected_attributes, actual_attributes)
 
         expected_methods = ['from_values', 'get_coordinates', '__init__', 'do_something']
@@ -214,8 +222,8 @@ class TestClassVisitor(unittest.TestCase):
 
         self.assertEqual('ThreeDimensionalPoint', visitor.class_name)
 
-        expected_attributes = ['z']
-        actual_attributes = visitor.class_attributes
+        expected_attributes = [InstanceAttribute(name='z', _type='float')]
+        actual_attributes = visitor.attributes
         self.assertCountEqual(expected_attributes, actual_attributes)
 
         expected_methods = ['__init__', 'move', 'check_positive']
@@ -233,8 +241,8 @@ class TestClassVisitor(unittest.TestCase):
 
         self.assertEqual('ThreeDimensionalCoordinates', visitor.class_name)
 
-        expected_attributes = ['z']
-        actual_attributes = visitor.class_attributes
+        expected_attributes = [InstanceAttribute(name='z', _type='float')]
+        actual_attributes = visitor.attributes
         self.assertCountEqual(expected_attributes, actual_attributes)
 
         expected_methods = ['__init__', 'move', 'check_negative']

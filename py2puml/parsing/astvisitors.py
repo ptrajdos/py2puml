@@ -1,7 +1,7 @@
-from typing import Dict, List, Tuple, Type
+from typing import Dict, List, Tuple
 from ast import (
     NodeVisitor, arg, expr, ClassDef,
-    FunctionDef, Assign, AnnAssign, ImportFrom,
+    FunctionDef, Assign, AnnAssign,
     Attribute, Name, Subscript, get_source_segment, parse
 )
 from collections import namedtuple
@@ -78,17 +78,22 @@ class ClassVisitor(NodeVisitor):
         self.class_type = class_type
         self.root_fqn = root_fqn
         self.class_name: str = None
-        self.class_attributes = []
+        self.attributes = []
         self.uml_methods: List[umlclass.UmlMethod] = []
         self.parent_classes_fqn = []
 
     def visit_Assign(self, node: Assign):
         """ Retrieve class attribute """
-        self.class_attributes.append(node.targets[0].id)
+        for target in node.targets:
+            class_attribute = umlclass.ClassAttribute(name=target.id)
+            self.attributes.append(class_attribute)
 
     def visit_AnnAssign(self, node: AnnAssign):
         """ Retrieve annotated class attribute """
-        self.class_attributes.append(node.target.id)
+        type_visitor = TypeVisitor()
+        _type = type_visitor.visit(node.annotation)
+        class_attribute = umlclass.ClassAttribute(name=node.target.id, _type=_type)
+        self.attributes.append(class_attribute)
 
     def visit_ClassDef(self, node: ClassDef):
         """ Retrieve name of the class and base class if any """
@@ -110,8 +115,8 @@ class ClassVisitor(NodeVisitor):
             constructor_visitor = ConstructorVisitor.from_class_type(self.class_type, self.root_fqn)
             constructor_ast = parse(constructor_visitor.constructor_source)
             constructor_visitor.visit(constructor_ast)
-            for attribute in constructor_visitor.uml_attributes:
-                self.class_attributes.append(attribute.name)
+            for attribute in constructor_visitor.instance_attributes:
+                self.attributes.append(attribute)
 
 
 class BaseClassVisitor(NodeVisitor):
@@ -228,6 +233,7 @@ class ConstructorVisitor(NodeVisitor):
         self.variables_namespace: List[Variable] = []
         self.uml_attributes: List[umlclass.UmlAttribute] = []
         self.uml_relations_by_target_fqn: Dict[str, UmlRelation] = {}
+        self.instance_attributes: List[umlclass.InstanceAttributes] = []
         # self.namespaced_types = namespaced_types
 
     @classmethod
@@ -278,6 +284,8 @@ class ConstructorVisitor(NodeVisitor):
         # if any, there is at most one self-assignment
         for variable in variables_collector.self_attributes:
             self.uml_attributes.append(umlclass.UmlAttribute(variable.id, short_type, static=False))
+            instance_attribute = umlclass.InstanceAttribute(name=variable.id, _type=short_type)
+            self.instance_attributes.append(instance_attribute)
             self.extend_relations(full_namespaced_definitions)
 
         # if any, there is at most one typed variable added to the scope
@@ -296,11 +304,15 @@ class ConstructorVisitor(NodeVisitor):
                     short_type, full_namespaced_definitions = self.derive_type_annotation_details(assigned_variable.type_expr)
                     attribute = umlclass.UmlAttribute(variables_collector.self_attributes[0].id, short_type, False)
                     self.uml_attributes.append(attribute)
+                    instance_attribute = umlclass.InstanceAttribute(name=variables_collector.self_attributes[0].id, _type=short_type)
+                    self.instance_attributes.append(instance_attribute)
                     self.extend_relations(full_namespaced_definitions)
             else:
                 for variable in variables_collector.self_attributes:
                     short_type, full_namespaced_definitions = self.derive_type_annotation_details(variable.type_expr)
                     self.uml_attributes.append(umlclass.UmlAttribute(variable.id, short_type, static=False))
+                    instance_attribute = umlclass.InstanceAttribute(name=variable.id, _type=short_type)
+                    self.instance_attributes.append(instance_attribute)
                     self.extend_relations(full_namespaced_definitions)
 
             # other assignments were done in new variables that can shadow existing ones
@@ -330,3 +342,27 @@ class ConstructorVisitor(NodeVisitor):
             short_type, associated_types = self.module_resolver.shorten_compound_type_annotation(source_segment)
             return short_type, associated_types
         return None, []
+
+
+class ModuleVisitor(NodeVisitor):
+
+    def __init__(self, root_fqn):
+        self.classes = []
+        self.enums = []
+        self.namedtuples = []
+        self.root_fqn = root_fqn
+
+    def visit_ClassDef(self, node: ClassDef):
+        class_type = getattr(import_module(self.root_fqn), node.name)
+        _class = umlclass.PythonClass.from_type(class_type)
+        visitor = ClassVisitor(class_type, self.root_fqn)
+        visitor.visit(node)
+        fully_qualified_name = '.'.join([self.root_fqn, node.name])
+        for attribute in visitor.attributes:
+            _class.attributes.append(attribute)
+        for method in visitor.uml_methods:
+            _class.methods.append(method)
+        if _class.name == 'Point':
+            print('asdfasdf')
+        self.classes.append(_class)
+

@@ -6,6 +6,7 @@ from pkgutil import walk_packages
 from pathlib import Path
 from importlib import import_module
 from ast import parse, NodeVisitor, ClassDef
+from abc import ABC, abstractmethod
 
 from py2puml.domain.umlitem import UmlItem
 import py2puml.parsing.astvisitors as astvisitors
@@ -86,7 +87,7 @@ class PythonModule:
             content = fref.read()
 
         ast = parse(content, filename=str(self.path))
-        visitor = ModuleVisitor(self.fully_qualified_name)
+        visitor = astvisitors.ModuleVisitor(self.fully_qualified_name)
         visitor.visit(ast)
 
         for _class in visitor.classes:
@@ -159,25 +160,59 @@ class PythonPackage:
 @dataclass
 class PythonClass:
     name: str
+    fully_qualified_name: str
     attributes: List = field(default_factory=list)
     methods: List = field(default_factory=list)
 
+    @classmethod
+    def from_type(cls, class_type):
+        name = class_type.__name__
+        fully_qualified_name = '.'.join([class_type.__module__, name])
+        return PythonClass(name=name, fully_qualified_name=fully_qualified_name)
 
-class ModuleVisitor(NodeVisitor):
+    def represent_as_puml(self):
+        lines = [f'class {self.fully_qualified_name} {{']
+        for attribute in self.attributes:
+            lines.append(f'  {attribute.represent_as_puml()}')
+        for method in self.methods:
+            lines.append(f'  {method.represent_as_puml()}')
+        lines.append('}')
 
-    def __init__(self, root_fqn):
-        self.classes = []
-        self.enums = []
-        self.namedtuples = []
-        self.root_fqn = root_fqn
+        return '\n'.join(lines)
 
-    def visit_ClassDef(self, node: ClassDef):
-        class_type = getattr(import_module(self.root_fqn), node.name)
-        visitor = astvisitors.ClassVisitor(class_type, self.root_fqn)
-        visitor.visit(node)
-        _class = PythonClass(name=node.name)
-        for attribute in visitor.class_attributes:
-            _class.attributes.append(attribute)
-        for method in visitor.uml_methods:
-            _class.methods.append(method)
-        self.classes.append(_class)
+
+class Attribute(ABC):
+
+    def __init__(self, name, _type=None):
+        self.name = name
+        self._type = _type
+
+    def __eq__(self, other):
+        if isinstance(other, Attribute):
+            return (self.name == other.name and self._type == other._type)
+        return False
+
+    def __ne__(self, other):
+        return not self == other
+
+    @abstractmethod
+    def represent_as_puml(self):
+        pass
+
+
+class ClassAttribute(Attribute):
+
+    def represent_as_puml(self):
+        if self._type:
+            return f'{self.name}: {self._type} {{static}}'
+        else:
+            return f'{self.name} {{static}}'
+
+
+class InstanceAttribute(Attribute):
+
+    def represent_as_puml(self):
+        if self._type:
+            return f'{self.name}: {self._type}'
+        else:
+            return f'{self.name}'

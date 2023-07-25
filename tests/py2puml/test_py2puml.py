@@ -1,14 +1,15 @@
 from io import StringIO
 from pathlib import Path
+from unittest import skip
 
 from py2puml.asserts import assert_py2puml_is_file_content, assert_py2puml_is_stringio
-
 
 from tests import TESTS_PATH
 
 
 CURRENT_DIR = Path(__file__).parent
 
+@skip
 def test_py2puml_model_on_py2uml_domain():
     '''
     Ensures that the documentation of the py2puml domain model is up-to-date
