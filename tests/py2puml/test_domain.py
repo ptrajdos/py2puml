@@ -50,7 +50,7 @@ class TestPythonClass(unittest.TestCase):
         self.assertEqual('Point', _class.name)
         self.assertEqual('tests.modules.withmethods.withmethods.Point', _class.fully_qualified_name)
 
-    def test_represent_as_puml(self):
+    def test_as_puml(self):
         expected_result = '''class tests.modules.withmethods.withmethods.Point {
   PI: float {static}
   origin {static}
@@ -66,7 +66,7 @@ class TestPythonClass(unittest.TestCase):
   int do_something(self, posarg_nohint, str posarg_hint, posarg_default)
 }'''
 
-        actual_result = self.point_class.represent_as_puml()
+        actual_result = self.point_class.as_puml
 
         self.assertEqual(expected_result, actual_result)
 
@@ -108,6 +108,15 @@ class TestPythonModule(unittest.TestCase):
 
 class TestPythonPackage(unittest.TestCase):
 
+    def setUp(self) -> None:
+        module1 = PythonModule(name='withmethods', fully_qualified_name='tests.modules.withmethods.withmethods', path=MODULES_DIR / 'withmethods' / 'withmethods.py')
+        module2 = PythonModule(name='withmethods', fully_qualified_name='tests.modules.withmethods.withinheritedmethods', path=MODULES_DIR / 'withmethods' / 'withinheritedmethods.py')
+        module1.visit()
+        module2.visit()
+        self.package = PythonPackage(path=MODULES_DIR / 'withmethods', name='withmethods', fully_qualified_name='tests.modules.withmethods')
+        self.package.modules.append(module1)
+        self.package.modules.append(module2)
+
     def test_from_imported_package(self):
         package = PythonPackage.from_imported_package(tests.modules)
         self.assertEqual(TESTS_DIR / 'modules', package.path)
@@ -115,32 +124,50 @@ class TestPythonPackage(unittest.TestCase):
         self.assertEqual('tests.modules', package.fully_qualified_name)
 
     def test_walk(self):
-        expected_modules = [
-            'tests.modules.withabstract',
-            'tests.modules.withbasictypes',
-            'tests.modules.withcomposition',
-            'tests.modules.withcompoundtypewithdigits',
-            'tests.modules.withconstructor',
-            'tests.modules.withenum',
-            'tests.modules.withinheritancewithinmodule',
-            'tests.modules.withnamedtuple',
-            'tests.modules.withwrappedconstructor',
-            'tests.modules.withsubdomain.withsubdomain',
-            'tests.modules.withsubdomain.subdomain.insubdomain'
-        ]
-        expected_packages = [
-            'tests.modules.withsubdomain',
-            'tests.modules.withsubdomain.subdomain'
-        ]
+        """ Test the walk method on the tests.modules package and make sure the package and module are correctly
+        hierarchized """
 
         package = PythonPackage.from_imported_package(tests.modules)
         package.walk()
 
-        actual_modules = [module.fully_qualified_name for module in package.modules]
-        actual_packages = [package.fully_qualified_name for package in package.packages]
+        self.assertEqual(9, len(package.modules))
 
-        self.assertCountEqual(expected_modules, actual_modules)
-        self.assertCountEqual(expected_packages, actual_packages)
+        self.assertEqual(1, len(package.subpackages))
+        expected_name = 'tests.modules.withsubdomain'
+        actual_name = package.subpackages[0].fully_qualified_name
+        self.assertEqual(expected_name, actual_name)
+        self.assertEqual(1, len(package.subpackages[0].modules))
+
+        self.assertEqual(1, len(package.subpackages[0].subpackages))
+        expected_name = 'tests.modules.withsubdomain.subdomain'
+        actual_name = package.subpackages[0].subpackages[0].fully_qualified_name
+        self.assertEqual(expected_name, actual_name)
+        self.assertEqual(1, len(package.subpackages[0].subpackages[0].modules))
+
+
+    def test_find_all_classes_1(self):
+        """ Test find_all_classes method on a package containing modules only """
+        all_classes = self.package.find_all_classes()
+        self.assertEqual(4, len(all_classes))
+
+    def test_find_all_classes_2(self):
+        """ Test find_all_classes method on a package containing subpackages """
+        package = PythonPackage.from_imported_package(tests.modules)
+        package.walk()
+        all_classes = package.find_all_classes()
+        self.assertEqual(20, len(all_classes))
+
+    def test_as_puml(self):
+        package = PythonPackage.from_imported_package(tests.modules)
+        package.walk()
+
+        expected_result = '''namespace tests.modules {
+  namespace withsubdomain {
+    namespace subdomain {}
+  }
+}'''
+        actual_result = package.as_puml
+        self.assertEqual(expected_result, actual_result)
 
 
 class TestClassAttributes(unittest.TestCase):
@@ -163,12 +190,43 @@ class TestClassAttributes(unittest.TestCase):
         self.assertEqual('origin', class_attribute.name)
         self.assertIsNone(class_attribute._type)
 
-    def test_represent_as_puml_typed(self):
+    def test_as_puml_typed(self):
         expected_result = 'PI: float {static}'
-        actual_result = self.typed_attribute.represent_as_puml()
+        actual_result = self.typed_attribute.as_puml
         self.assertEqual(expected_result, actual_result)
 
-    def test_represent_as_puml_untyped(self):
+    def test_as_puml_untyped(self):
         expected_result = 'origin {static}'
-        actual_result = self.untyped_attribute.represent_as_puml()
+        actual_result = self.untyped_attribute.as_puml
+        self.assertEqual(expected_result, actual_result)
+
+
+class TestInstanceAttributes(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.typed_attribute = InstanceAttribute(name='attribute1', _type='int')
+        self.untyped_attribute = InstanceAttribute(name='attribute2')
+
+    def test_constructor_typed(self):
+        class_attribute = InstanceAttribute(name='attribute1', _type='int')
+        self.assertIsInstance(class_attribute, Attribute)
+        self.assertIsInstance(class_attribute, InstanceAttribute)
+        self.assertEqual('attribute1', class_attribute.name)
+        self.assertEqual('int', class_attribute._type)
+
+    def test_constructor_untyped(self):
+        class_attribute = InstanceAttribute(name='attribute2')
+        self.assertIsInstance(class_attribute, Attribute)
+        self.assertIsInstance(class_attribute, InstanceAttribute)
+        self.assertEqual('attribute2', class_attribute.name)
+        self.assertIsNone(class_attribute._type)
+
+    def test_as_puml_typed(self):
+        expected_result = 'attribute1: int'
+        actual_result = self.typed_attribute.as_puml
+        self.assertEqual(expected_result, actual_result)
+
+    def test_as_puml_untyped(self):
+        expected_result = 'attribute2'
+        actual_result = self.untyped_attribute.as_puml
         self.assertEqual(expected_result, actual_result)

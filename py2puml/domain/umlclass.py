@@ -27,7 +27,8 @@ class UmlMethod:
     is_class: bool = False
     return_type: str = None
 
-    def represent_as_puml(self):
+    @property
+    def as_puml(self):
         items = []
         if self.is_static:
             items.append('{static}')
@@ -93,6 +94,10 @@ class PythonModule:
         for _class in visitor.classes:
             self.classes.append(_class)
 
+    @property
+    def parent_fully_qualified_name(self):
+        return '.'.join(self.fully_qualified_name.split('.')[:-1])
+
 
 @dataclass
 class PythonPackage:
@@ -105,13 +110,16 @@ class PythonPackage:
         path (Path): path to the Python package folder
         name (str): name of the Python package
         fully_qualified_name (str): fully qualified name of the Python package
+        depth (int): package depth level relative to the root package. Root package has level 0.
         modules (List[PythonModule]): list of modules found in the package
         packages (List[PythonPackage]): list of subpackages found in the package"""
     path: Path
     name: str
     fully_qualified_name: str
+    depth: int = 0
     modules: List[PythonModule] = field(default_factory=list)
     packages: List[PythonPackage] = field(default_factory=list)
+    subpackages: List[PythonPackage] = field(default_factory=list)
 
     @classmethod
     def from_imported_package(cls, package_obj):
@@ -130,7 +138,7 @@ class PythonPackage:
             path = Path(package_obj.__path__._path[0])
         name = package_obj.__name__.split('.')[-1]
         fully_qualified_name = package_obj.__name__
-        return PythonPackage(path=path, name=name, fully_qualified_name=fully_qualified_name)
+        return PythonPackage(path=path, name=name, fully_qualified_name=fully_qualified_name, depth=0)
 
     def walk(self):
         """
@@ -140,21 +148,66 @@ class PythonPackage:
         PythonModule object when a module is found and append to the list of modules. Create instances of PythonPackage
         object when a subpackage is found and append to the list of packages.
 
+        Since pkgutil.walk_packages flattens the package hierarchy, a local dictionary 'all_packages' is used to store
+        all packages found (including the top-level package). New packages found are appended to the 'subpackages'
+        attribute of the parent package.
+
         Note:
             Found subpackages and modules are imported.
             The prefix argument must be provided to 'walk_package' for it to find subpackages recursively.
         """
         paths = [str(self.path)]
         prefix = f'{self.fully_qualified_name}.'
+        all_packages = {self.fully_qualified_name: self}
+
         for _, name, is_pkg in walk_packages(path=paths, prefix=prefix):
             if is_pkg:
                 imported_package = import_module(name)
                 package = PythonPackage.from_imported_package(imported_package)
-                self.packages.append(package)
+                all_packages[package.fully_qualified_name] = package
+
+                parent_package = all_packages[package.parent_fully_qualified_name]
+                package.depth = parent_package.depth + 1
+                parent_package.subpackages.append(package)
             else:
                 imported_module = import_module(name)
                 module = PythonModule.from_imported_module(imported_module)
-                self.modules.append(module)
+                module.visit()
+
+                parent_package = all_packages[module.parent_fully_qualified_name]
+                parent_package.modules.append(module)
+
+    def find_all_classes(self):
+        classes = []
+        for module in self.modules:
+            classes.extend(module.classes)
+        for package in self.subpackages:
+            classes.extend(package.find_all_classes())
+        return classes
+
+    @property
+    def parent_fully_qualified_name(self):
+        return '.'.join(self.fully_qualified_name.split('.')[:-1])
+
+    @property
+    def as_puml(self):
+        indentation = self.depth * 2 * ' '
+
+        if self.depth==0:
+            lines = [f'namespace {self.fully_qualified_name} {{']
+        else:
+            lines = [indentation + f'namespace {self.name} {{']
+
+        for package in self.subpackages:
+            lines.append(package.as_puml)
+        if self.subpackages:
+            lines.append(indentation + '}')
+        else:
+            lines.append('}')
+
+        if self.subpackages:
+            return '\n'.join(lines)
+        return ''.join(lines)
 
 
 @dataclass
@@ -170,15 +223,22 @@ class PythonClass:
         fully_qualified_name = '.'.join([class_type.__module__, name])
         return PythonClass(name=name, fully_qualified_name=fully_qualified_name)
 
-    def represent_as_puml(self):
+    @property
+    def as_puml(self):
         lines = [f'class {self.fully_qualified_name} {{']
         for attribute in self.attributes:
-            lines.append(f'  {attribute.represent_as_puml()}')
+            lines.append(f'  {attribute.as_puml}')
         for method in self.methods:
-            lines.append(f'  {method.represent_as_puml()}')
+            lines.append(f'  {method.as_puml}')
         lines.append('}')
 
         return '\n'.join(lines)
+
+
+@dataclass
+class Relationship:
+    source: str
+    destination: str
 
 
 class Attribute(ABC):
@@ -195,14 +255,16 @@ class Attribute(ABC):
     def __ne__(self, other):
         return not self == other
 
+    @property
     @abstractmethod
-    def represent_as_puml(self):
+    def as_puml(self):
         pass
 
 
 class ClassAttribute(Attribute):
 
-    def represent_as_puml(self):
+    @property
+    def as_puml(self):
         if self._type:
             return f'{self.name}: {self._type} {{static}}'
         else:
@@ -211,8 +273,34 @@ class ClassAttribute(Attribute):
 
 class InstanceAttribute(Attribute):
 
-    def represent_as_puml(self):
+    @property
+    def as_puml(self):
         if self._type:
             return f'{self.name}: {self._type}'
         else:
             return f'{self.name}'
+
+
+class ClassDiagram:
+
+    INDENT = 2
+
+    def __init__(self, package: PythonPackage):
+        self.package: PythonPackage = package
+        self.classes: List[PythonClass] = package.find_all_classes()
+        self.relationships = []
+
+    def generate(self):
+        yield self.header
+        yield self.package.as_puml
+        for _class in self.classes:
+            yield _class.as_puml
+        yield self.footer
+
+    @property
+    def header(self):
+        return f'@startuml {self.package.fully_qualified_name}\n'
+
+    @property
+    def footer(self):
+        return 'footer Generated by //py2puml//\n@enduml\n'

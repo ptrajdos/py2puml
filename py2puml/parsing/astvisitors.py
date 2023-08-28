@@ -362,7 +362,6 @@ class ModuleVisitor(NodeVisitor):
             _class.attributes.append(attribute)
         for method in visitor.uml_methods:
             _class.methods.append(method)
-        if _class.name == 'Point':
-            print('asdfasdf')
+
         self.classes.append(_class)
 

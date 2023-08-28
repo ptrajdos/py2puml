@@ -39,7 +39,7 @@ def to_puml_content(diagram_name: str, uml_items: List[UmlItem], uml_relations: 
             for uml_attr in uml_class.attributes:
                 yield PUML_ATTR_TPL.format(attr_name=uml_attr.name, attr_type=uml_attr.type, staticity=FEATURE_STATIC if uml_attr.static else FEATURE_INSTANCE)
             for uml_method in uml_class.methods:
-                yield f'  {uml_method.represent_as_puml()}\n'
+                yield f'  {uml_method.as_puml}\n'
             yield PUML_ITEM_END
         else:
             raise TypeError(f'cannot process uml_item of type {uml_item.__class__}')
