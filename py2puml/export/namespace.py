@@ -72,16 +72,6 @@ def visit_package(package: Package, parent_namespace_names: Tuple[str], indentat
         else:
             yield PUML_NAMESPACE_END_TPL.format(indentation=start_of_namespace_line)
 
-def build_packages_structure(uml_items: List[UmlItem]) -> Package:
-    '''
-    Creates the Package arborescent structure with the given UML items with their fully-qualified module names
-    '''
-    root_package = Package(None)
-    for uml_item in uml_items:
-        module_package = get_or_create_module_package(root_package, uml_item.fqn.split('.')[:-1])
-        module_package.items_number += 1
-
-    return root_package
 
 def puml_namespace_content(uml_items: List[UmlItem]) -> Iterable[str]:
     '''
