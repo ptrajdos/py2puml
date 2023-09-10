@@ -145,6 +145,24 @@ class TestPythonPackage(unittest.TestCase):
         self.assertEqual('modules', package.name)
         self.assertEqual('tests.modules', package.fully_qualified_name)
 
+    def test_has_sibling_root(self):
+        """ Test has_sibling property on root package with modules only """
+        self.assertFalse(self.package.has_sibling)
+
+    def test_has_sibling(self):
+        """ Test has_sibling property on package containing subpackages """
+        root_package = PythonPackage(path=MODULES_DIR, name='root', fully_qualified_name='root')
+        package1 = PythonPackage(path=MODULES_DIR, name='pkg1', fully_qualified_name='root.pkg1')
+        package2 = PythonPackage(path=MODULES_DIR, name='pkg2', fully_qualified_name='root.pkg2')
+        package1.parent_package = root_package
+        package2.parent_package = root_package
+        package11 = PythonPackage(path=MODULES_DIR / 'root', name='pkg11', fully_qualified_name='root.pkg1.pkg11')
+        package11.parent_package = package1
+
+        self.assertTrue(package1.has_sibling)
+        self.assertTrue(package2.has_sibling)
+        self.assertFalse(package11.has_sibling)
+
     def test_walk(self):
         """ Test the walk method on the tests.modules package and make sure the package and module are correctly
         hierarchized """
@@ -235,18 +253,54 @@ class TestPythonPackage(unittest.TestCase):
         all_classes = package.find_all_classes()
         self.assertEqual(10, len(all_classes))
 
-    @unittest.skip
+    def test_find_all_modules_1(self):
+        """ Test find_all_classes method on a package containing modules only """
+        all_modules = self.package.find_all_modules()
+        self.assertEqual(2, len(all_modules))
+
+    def test_find_all_modules_2(self):
+        """ Test find_all_classes method on a package containing subpackages """
+        package = PythonPackage.from_imported_package(tests.modules.withnestednamespace)
+        package.walk()
+
+        all_modules = package.find_all_modules()
+        self.assertEqual(7, len(all_modules))
+
+    def test_find_all_modules_3(self):
+        """ Test find_all_classes method on a package containing subpackages with the skip_empty flag turned on """
+        package = PythonPackage.from_imported_package(tests.modules.withnestednamespace)
+        package.walk()
+
+        all_modules = package.find_all_modules(skip_empty=True)
+        self.assertEqual(6, len(all_modules))
+
     def test_as_puml(self):
-        # FIXME: as_puml is not fully implemented yet.
         package = PythonPackage.from_imported_package(tests.modules.withsubdomain)
         package.walk()
 
-        expected_result = '''namespace tests.modules {
-  namespace withsubdomain {
-    namespace subdomain {}
+        expected_result = '''namespace tests.modules.withsubdomain {
+  namespace withsubdomain {}
+  namespace subdomain.insubdomain {}
+}'''
+        actual_result = package.as_puml
+        print(actual_result)
+        self.assertEqual(expected_result, actual_result)
+
+    def test_as_puml_2(self):
+        # FIXME: indentation problem must be fixed
+        package = PythonPackage.from_imported_package(tests.modules.withnestednamespace)
+        package.walk()
+        expected_result = '''namespace tests.modules.withnestednamespace {
+  namespace tree {}
+  namespace branches.branch {}
+  namespace nomoduleroot.modulechild.leaf {}
+  namespace trunks.trunk {}
+  namespace withonlyonesubpackage.underground {
+    namespace roots.roots {}
   }
 }'''
         actual_result = package.as_puml
+        print(actual_result)
         self.assertEqual(expected_result, actual_result)
 
 

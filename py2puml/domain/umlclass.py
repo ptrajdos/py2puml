@@ -74,6 +74,7 @@ class PythonModule:
     fully_qualified_name: str
     path: Path
     classes: List = field(default_factory=list)
+    _parent_package: PythonPackage = None
 
     @classmethod
     def from_imported_module(cls, module_obj):
@@ -93,6 +94,15 @@ class PythonModule:
     @property
     def has_classes(self):
         return len(self.classes) > 0
+
+    @property
+    def parent_package(self) -> PythonPackage:
+        return self._parent_package
+
+    @parent_package.setter
+    def parent_package(self, value: PythonPackage) -> None:
+        self._parent_package = value
+        value.modules.append(self)
 
     def visit(self):
         """ Visit AST node corresponding to the module in order to find classes """
@@ -132,6 +142,16 @@ class PythonPackage:
     _type: PackageType = PackageType.REGULAR
     modules: List[PythonModule] = field(default_factory=list)
     subpackages: Dict[str, PythonPackage] = field(default_factory=dict)
+    _parent_package: PythonPackage = None
+
+    @property
+    def parent_package(self) -> PythonPackage:
+        return self._parent_package
+
+    @parent_package.setter
+    def parent_package(self, value: PythonPackage) -> None:
+        self._parent_package = value
+        value.subpackages[self.name] = self
 
     @classmethod
     def from_imported_package(cls, package_obj):
@@ -187,7 +207,7 @@ class PythonPackage:
                 module.visit()
 
                 parent_package = all_packages[module.parent_fully_qualified_name]
-                parent_package.modules.append(module)
+                module.parent_package = parent_package
 
         namespace_packages_names = find_namespace_packages(str(self.path))
         for namespace_package_name in namespace_packages_names:
@@ -197,7 +217,7 @@ class PythonPackage:
             all_packages[package.fully_qualified_name] = package
             parent_package = all_packages[package.parent_fully_qualified_name]
             package.depth = parent_package.depth + 1
-            parent_package.subpackages[package.name] = package
+            package.parent_package = parent_package
 
             if package._type == PackageType.REGULAR:
                 imported_module = import_module(package.fully_qualified_name + '.__init__')
@@ -205,7 +225,7 @@ class PythonPackage:
                 module.visit()
                 if module.has_classes:
                     parent_package = all_packages[module.parent_fully_qualified_name]
-                    parent_package.modules.append(module)
+                    module.parent_package = parent_package
 
             for _, name, is_pkg in iter_modules(path=[package.path]):
                 if not is_pkg:
@@ -214,7 +234,7 @@ class PythonPackage:
                     module.visit()
 
                     parent_package = all_packages[module.parent_fully_qualified_name]
-                    parent_package.modules.append(module)
+                    module.parent_package = parent_package
 
     def find_all_classes(self) -> List[PythonClass]:
         """ Find all classes in a given package declared in their modules, by looking recursively into subpackages.
@@ -228,30 +248,82 @@ class PythonPackage:
             classes.extend(subpackage.find_all_classes())
         return classes
 
+    def find_all_modules(self, skip_empty: bool = False) -> List[PythonModule]:
+        """ Find all modules in a given package, looking recursively into subpackages. Modules not containing any
+        class can be ignored by passing the optional parameter 'skip_empty' as True.
+
+        Args:
+            skip_empty (bool): exclude modules not containing any class
+
+        Returns:
+            List of PythonModule objects """
+        modules = []
+        for module in self.modules:
+
+            if not skip_empty or module.has_classes:
+                modules.append(module)
+        for subpackage in self.subpackages.values():
+            modules.extend(subpackage.find_all_modules(skip_empty=skip_empty))
+        return modules
+
     @property
     def parent_fully_qualified_name(self):
         return '.'.join(self.fully_qualified_name.split('.')[:-1])
 
     @property
-    def as_puml(self):
-        # FIXME: not working yet
-        indentation = self.depth * 2 * ' '
+    def has_sibling(self):
+        if self.parent_package:
+            return len(self.parent_package.subpackages) > 1
+        return False
 
-        if self.depth==0:
-            lines = [f'namespace {self.fully_qualified_name} {{']
+    @property
+    def as_puml(self) -> str:
+        """ Returns a plantUML representation of the package that will be used in the
+        'namespace' declaration of the .puml file.
+
+        Returns:
+            PlantUML representation of package"""
+        # FIXME: small issue with indentation
+        modules = [module for module in self.modules if module.has_classes]
+
+        if self.depth == 0:
+            puml_str = f'namespace {self.fully_qualified_name}'
         else:
-            lines = [indentation + f'namespace {self.name} {{']
+            if self.has_sibling or self.parent_package.modules:
+                indentation = self.depth * '  '
+                puml_str = f'\n{indentation}namespace {self.name}'
+            else:
+                puml_str = f'.{self.name}'
 
-        for package in self.subpackages.values():
-            lines.append(package.as_puml)
-        if self.subpackages:
-            lines.append(indentation + '}')
+        if len(self.subpackages) + len(modules) > 1:
+            puml_str = puml_str + ' {'
+            indentation = (self.depth + 1) * '  '
+            for module in modules:
+                puml_str = puml_str + f'\n{indentation}namespace {module.name} {{}}'
+
+            for subpackage in self.subpackages.values():
+                puml_str = puml_str + subpackage.as_puml
+
+        elif len(modules) == 1:
+            puml_str = puml_str + f'.{modules[0].name} {{}}'
+
+        elif len(self.subpackages):
+            subpackage = next(iter(self.subpackages.values()))
+            puml_str = puml_str + subpackage.as_puml
+
         else:
-            lines.append('}')
+            puml_str = ''
 
-        if self.subpackages:
-            return '\n'.join(lines)
-        return ''.join(lines)
+        if len(self.subpackages) + len(modules) > 1:
+            indentation = self.depth * '  '
+            puml_str = puml_str + f'\n{indentation}}}\n'
+
+        if self.depth == 0:
+            lines = puml_str.split('\n')
+            clean_lines = [line for line in lines if (line.endswith('{') or line.endswith('}')) and '__init__' not in line]
+            puml_str = '\n'.join(clean_lines)
+
+        return puml_str
 
 
 @dataclass
