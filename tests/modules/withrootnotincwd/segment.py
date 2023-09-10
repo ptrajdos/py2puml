@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from withrootnotincwd.point import Point
+from tests.modules.withrootnotincwd.point import Point
 
 
 @dataclass

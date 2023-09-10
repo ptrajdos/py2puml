@@ -2,14 +2,21 @@ from __future__ import annotations
 
 from typing import List, Dict
 from dataclasses import dataclass, field
-from pkgutil import walk_packages
+from pkgutil import walk_packages, iter_modules
 from pathlib import Path
 from importlib import import_module
-from ast import parse, NodeVisitor, ClassDef
+from ast import parse
 from abc import ABC, abstractmethod
+from enum import Enum
+from setuptools import find_namespace_packages
 
 from py2puml.domain.umlitem import UmlItem
 import py2puml.parsing.astvisitors as astvisitors
+
+
+class PackageType(Enum):
+    REGULAR = 1
+    NAMESPACE = 2
 
 
 @dataclass
@@ -40,7 +47,8 @@ class UmlMethod:
     @property
     def signature(self):
         if self.arguments:
-            return ', '.join([f'{arg_type} {arg_name}' if arg_type else f'{arg_name}' for arg_name, arg_type in self.arguments.items()])
+            return ', '.join([f'{arg_type} {arg_name}' if arg_type else f'{arg_name}' for arg_name, arg_type in
+                              self.arguments.items()])
         return ''
 
 
@@ -82,6 +90,10 @@ class PythonModule:
         path = Path(module_obj.__file__)
         return PythonModule(name=name, fully_qualified_name=fully_qualified_name, path=path)
 
+    @property
+    def has_classes(self):
+        return len(self.classes) > 0
+
     def visit(self):
         """ Visit AST node corresponding to the module in order to find classes """
         with open(self.path, 'r') as fref:
@@ -112,14 +124,14 @@ class PythonPackage:
         fully_qualified_name (str): fully qualified name of the Python package
         depth (int): package depth level relative to the root package. Root package has level 0.
         modules (List[PythonModule]): list of modules found in the package
-        packages (List[PythonPackage]): list of subpackages found in the package"""
+        subpackages (Dict[str, PythonPackage]): dictionary of subpackages found in the package"""
     path: Path
     name: str
     fully_qualified_name: str
     depth: int = 0
+    _type: PackageType = PackageType.REGULAR
     modules: List[PythonModule] = field(default_factory=list)
-    packages: List[PythonPackage] = field(default_factory=list)
-    subpackages: List[PythonPackage] = field(default_factory=list)
+    subpackages: Dict[str, PythonPackage] = field(default_factory=dict)
 
     @classmethod
     def from_imported_package(cls, package_obj):
@@ -138,7 +150,14 @@ class PythonPackage:
             path = Path(package_obj.__path__._path[0])
         name = package_obj.__name__.split('.')[-1]
         fully_qualified_name = package_obj.__name__
-        return PythonPackage(path=path, name=name, fully_qualified_name=fully_qualified_name, depth=0)
+
+        init_filepath = path / '__init__.py'
+        if init_filepath.is_file():
+            _type = PackageType.REGULAR
+        else:
+            _type = PackageType.NAMESPACE
+
+        return PythonPackage(path=path, name=name, fully_qualified_name=fully_qualified_name, depth=0, _type=_type)
 
     def walk(self):
         """
@@ -156,33 +175,57 @@ class PythonPackage:
             Found subpackages and modules are imported.
             The prefix argument must be provided to 'walk_package' for it to find subpackages recursively.
         """
-        paths = [str(self.path)]
-        prefix = f'{self.fully_qualified_name}.'
+        # FIXME: refactor this method, not DRY enough!!!
+        # FIXME: crash when path passed as string and ending with '/'
+
         all_packages = {self.fully_qualified_name: self}
 
-        for _, name, is_pkg in walk_packages(path=paths, prefix=prefix):
-            if is_pkg:
-                imported_package = import_module(name)
-                package = PythonPackage.from_imported_package(imported_package)
-                all_packages[package.fully_qualified_name] = package
-
-                parent_package = all_packages[package.parent_fully_qualified_name]
-                package.depth = parent_package.depth + 1
-                parent_package.subpackages.append(package)
-            else:
-                imported_module = import_module(name)
+        for _, name, is_pkg in iter_modules(path=[self.path]):
+            if not is_pkg:
+                imported_module = import_module(f'{self.fully_qualified_name}.{name}')
                 module = PythonModule.from_imported_module(imported_module)
                 module.visit()
 
                 parent_package = all_packages[module.parent_fully_qualified_name]
                 parent_package.modules.append(module)
 
-    def find_all_classes(self):
+        namespace_packages_names = find_namespace_packages(str(self.path))
+        for namespace_package_name in namespace_packages_names:
+            imported_package = import_module(f'{self.fully_qualified_name}.{namespace_package_name}')
+            package = PythonPackage.from_imported_package(imported_package)
+
+            all_packages[package.fully_qualified_name] = package
+            parent_package = all_packages[package.parent_fully_qualified_name]
+            package.depth = parent_package.depth + 1
+            parent_package.subpackages[package.name] = package
+
+            if package._type == PackageType.REGULAR:
+                imported_module = import_module(package.fully_qualified_name + '.__init__')
+                module = PythonModule.from_imported_module(imported_module)
+                module.visit()
+                if module.has_classes:
+                    parent_package = all_packages[module.parent_fully_qualified_name]
+                    parent_package.modules.append(module)
+
+            for _, name, is_pkg in iter_modules(path=[package.path]):
+                if not is_pkg:
+                    imported_module = import_module(f'{package.fully_qualified_name}.{name}')
+                    module = PythonModule.from_imported_module(imported_module)
+                    module.visit()
+
+                    parent_package = all_packages[module.parent_fully_qualified_name]
+                    parent_package.modules.append(module)
+
+    def find_all_classes(self) -> List[PythonClass]:
+        """ Find all classes in a given package declared in their modules, by looking recursively into subpackages.
+
+        Returns:
+            List of PythonClass objects """
         classes = []
         for module in self.modules:
             classes.extend(module.classes)
-        for package in self.subpackages:
-            classes.extend(package.find_all_classes())
+        for subpackage in self.subpackages.values():
+            classes.extend(subpackage.find_all_classes())
         return classes
 
     @property
@@ -191,6 +234,7 @@ class PythonPackage:
 
     @property
     def as_puml(self):
+        # FIXME: not working yet
         indentation = self.depth * 2 * ' '
 
         if self.depth==0:
@@ -198,7 +242,7 @@ class PythonPackage:
         else:
             lines = [indentation + f'namespace {self.name} {{']
 
-        for package in self.subpackages:
+        for package in self.subpackages.values():
             lines.append(package.as_puml)
         if self.subpackages:
             lines.append(indentation + '}')
@@ -282,7 +326,6 @@ class InstanceAttribute(Attribute):
 
 
 class ClassDiagram:
-
     INDENT = 2
 
     def __init__(self, package: PythonPackage):
