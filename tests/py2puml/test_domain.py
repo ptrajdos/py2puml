@@ -163,6 +163,33 @@ class TestPythonPackage(unittest.TestCase):
         self.assertTrue(package2.has_sibling)
         self.assertFalse(package11.has_sibling)
 
+    def test_add_module(self):
+        """ Test the _add_module method """
+        package = PythonPackage(path=MODULES_DIR / 'withmethods', name='withmethods',
+                                fully_qualified_name='tests.modules.withmethods')
+        package.all_packages['tests.modules.withmethods'] = package
+        package._add_module('tests.modules.withmethods.withmethods')
+        module_obj = package.modules[0]
+
+        self.assertEqual(1, len(package.modules))
+        self.assertIn(module_obj, package.modules)
+        self.assertTrue(module_obj.has_classes)
+        self.assertEqual(package, module_obj.parent_package)
+
+    def test_add_subpackage(self):
+        """ Test the _add_subpackage method """
+        package = PythonPackage(path=MODULES_DIR, name='modules',
+                                fully_qualified_name='tests.modules')
+        package.all_packages['tests.modules'] = package
+        subpackage = package._add_subpackage('tests.modules.withmethods')
+
+        self.assertIsInstance(subpackage, PythonPackage)
+        self.assertEqual(package, subpackage.parent_package)
+        self.assertIn('withmethods', package.subpackages.keys())
+        self.assertEqual(subpackage, package.subpackages['withmethods'])
+        self.assertEqual(1, subpackage.depth)
+        self.assertDictEqual({'tests.modules': package, 'tests.modules.withmethods': subpackage}, package.all_packages)
+
     def test_walk(self):
         """ Test the walk method on the tests.modules package and make sure the package and module are correctly
         hierarchized """

@@ -143,6 +143,7 @@ class PythonPackage:
     modules: List[PythonModule] = field(default_factory=list)
     subpackages: Dict[str, PythonPackage] = field(default_factory=dict)
     _parent_package: PythonPackage = None
+    all_packages: Dict[str, PythonPackage] = field(default_factory=dict)
 
     @property
     def parent_package(self) -> PythonPackage:
@@ -179,62 +180,90 @@ class PythonPackage:
 
         return PythonPackage(path=path, name=name, fully_qualified_name=fully_qualified_name, depth=0, _type=_type)
 
+    def _add_module(self, module_fully_qualified_name: str, skip_empty: bool = False) -> None:
+        """ Add a new module to a package from its name.
+
+        This method imports first the module and instantiate a PythonModule object from it. Classes in this
+        PythonModule are resolved by visiting the AST corresponding to this module. This method also establish
+        parent-child relationship between package and module.
+
+        Args:
+            module_fully_qualified_name (str): fully qualified module name
+            skip_empty (bool): if set to True skip adding module if it has no classes """
+
+        imported_module = import_module(module_fully_qualified_name)
+        module = PythonModule.from_imported_module(imported_module)
+        module.visit()
+
+        if not skip_empty or module.has_classes:
+            parent_package = self.all_packages[module.parent_fully_qualified_name]
+            module.parent_package = parent_package
+
+    def _add_subpackage(self, subpackage_fully_qualified_name: str) -> PythonPackage:
+        """ Add a new subpackage to a package from its name.
+
+        This method imports first the module and instantiate a PythonModule object from it. Classes in this
+        PythonModule are resolved by visiting the AST corresponding to this module. This method also establish
+        parent-child relationship between package and subpackage and define the depth of the subpackage (0 corresponds
+        to the root package).
+
+        Args:
+            subpackage_fully_qualified_name (str): fully qualified package name
+
+        Returns;
+            The subpackage itself """
+
+        imported_package = import_module(subpackage_fully_qualified_name)
+        subpackage = PythonPackage.from_imported_package(imported_package)
+
+        self.all_packages[subpackage.fully_qualified_name] = subpackage
+        parent_package = self.all_packages[subpackage.parent_fully_qualified_name]
+        subpackage.depth = parent_package.depth + 1
+        subpackage.parent_package = parent_package
+
+        return subpackage
+
     def walk(self):
         """
         Find subpackages and modules recursively
 
-        Uses the pkgutil.walk_packages to search recursively for modules and subpackages. Create instances of
-        PythonModule object when a module is found and append to the list of modules. Create instances of PythonPackage
-        object when a subpackage is found and append to the list of packages.
+        Uses the setuptools.find_namespace_packages method to search recursively for regular and namespace
+        subpackages of a given root package (the instance 'self' in this case). Create instances of PythonPackage
+        object when a subpackage is found and add it as a subpackage while preserving hierarchy (see implementation
+        in method _add_subpackage ).
 
-        Since pkgutil.walk_packages flattens the package hierarchy, a local dictionary 'all_packages' is used to store
-        all packages found (including the top-level package). New packages found are appended to the 'subpackages'
-        attribute of the parent package.
+        Since setuptools.find_namespace_packages flattens the package hierarchy, the instance attribute
+        'all_packages' is used to store all packages found (including the top-level package). New packages found are
+        appended to the 'subpackages' attribute of the parent package.
+
+        Use the pkgutils.iter_modules() method to find modules in a package. When a module is found the method
+        _add_module() will create a PythonModule instance, visit it  and add this object as a module of the
+        corresponding PythonPackage object (see attribute 'modules'). For regular packages, the ``__init__`` module
+        is visited and if class(es) is/are found, this module will also be added to the PythonPackage.modules
+        attribute with the _add_module method.
 
         Note:
             Found subpackages and modules are imported.
-            The prefix argument must be provided to 'walk_package' for it to find subpackages recursively.
         """
-        # FIXME: refactor this method, not DRY enough!!!
         # FIXME: crash when path passed as string and ending with '/'
 
-        all_packages = {self.fully_qualified_name: self}
-
-        for _, name, is_pkg in iter_modules(path=[self.path]):
-            if not is_pkg:
-                imported_module = import_module(f'{self.fully_qualified_name}.{name}')
-                module = PythonModule.from_imported_module(imported_module)
-                module.visit()
-
-                parent_package = all_packages[module.parent_fully_qualified_name]
-                module.parent_package = parent_package
+        self.all_packages[self.fully_qualified_name] = self
 
         namespace_packages_names = find_namespace_packages(str(self.path))
-        for namespace_package_name in namespace_packages_names:
-            imported_package = import_module(f'{self.fully_qualified_name}.{namespace_package_name}')
-            package = PythonPackage.from_imported_package(imported_package)
+        namespace_packages_names.insert(0, None)
 
-            all_packages[package.fully_qualified_name] = package
-            parent_package = all_packages[package.parent_fully_qualified_name]
-            package.depth = parent_package.depth + 1
-            package.parent_package = parent_package
+        for namespace_package_name in namespace_packages_names:
+            if namespace_package_name:
+                package = self._add_subpackage(f'{self.fully_qualified_name}.{namespace_package_name}')
+            else:
+                package = self
 
             if package._type == PackageType.REGULAR:
-                imported_module = import_module(package.fully_qualified_name + '.__init__')
-                module = PythonModule.from_imported_module(imported_module)
-                module.visit()
-                if module.has_classes:
-                    parent_package = all_packages[module.parent_fully_qualified_name]
-                    module.parent_package = parent_package
+                self._add_module(f'{package.fully_qualified_name}.__init__', skip_empty=True)
 
             for _, name, is_pkg in iter_modules(path=[package.path]):
                 if not is_pkg:
-                    imported_module = import_module(f'{package.fully_qualified_name}.{name}')
-                    module = PythonModule.from_imported_module(imported_module)
-                    module.visit()
-
-                    parent_package = all_packages[module.parent_fully_qualified_name]
-                    module.parent_package = parent_package
+                    self._add_module(f'{package.fully_qualified_name}.{name}')
 
     def find_all_classes(self) -> List[PythonClass]:
         """ Find all classes in a given package declared in their modules, by looking recursively into subpackages.
