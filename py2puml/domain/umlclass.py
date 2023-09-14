@@ -220,6 +220,7 @@ class PythonPackage:
             module_fully_qualified_name (str): fully qualified module name
             skip_empty (bool): if set to True skip adding module if it has no classes """
 
+        # FIXME: importing module will execute the code. Find an alternative
         imported_module = import_module(module_fully_qualified_name)
         module = PythonModule.from_imported_module(imported_module)
         module.visit()
@@ -465,6 +466,26 @@ class PythonClass:
         return '\n'.join(lines)
 
 
+@dataclass
+class Relation(ABC):
+
+    def __init__(self, source: str, destination: str):
+        self.source = source
+        self.destination = destination
+
+    @property
+    @abstractmethod
+    def as_puml(self):
+        pass
+
+
+class InheritanceRelation(Relation):
+
+    @property
+    def as_puml(self):
+        return f'{self.destination} <|-- {self.source}\n'
+
+
 class Attribute(ABC):
 
     def __init__(self, name, _type=None):
@@ -506,18 +527,30 @@ class InstanceAttribute(Attribute):
 
 
 class ClassDiagram:
-    INDENT = 2
 
     def __init__(self, package: PythonPackage):
         self.package: PythonPackage = package
         self.classes: List[PythonClass] = package.find_all_classes()
-        self.relationships = []
+        self.relations = []
+
+    def define_relations(self):
+        """ Method that defines inheritance relations by searching through all classes for classes having one or more
+        base class(es) """
+        for _class in self.classes:
+            if _class.base_classes:
+                for base_class in _class.base_classes.values():
+                    source = _class.fully_qualified_name
+                    destination = base_class.fully_qualified_name
+                    relation = InheritanceRelation(source=source, destination=destination)
+                    self.relations.append(relation)
 
     def generate(self):
         yield self.header
         yield self.package.as_puml
         for _class in self.classes:
             yield _class.as_puml
+        for relation in self.relations:
+            yield relation.as_puml
         yield self.footer
 
     @property
