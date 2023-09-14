@@ -8,7 +8,8 @@ import tests.modules.withsubdomain
 from tests.modules.withmethods.withmethods import Point
 from tests.modules.withnestednamespace.withoutumlitemroot.withoutumlitemleaf import withoutumlitem
 from tests.modules.withnestednamespace.withonlyonesubpackage.underground.roots import roots
-from py2puml.domain.umlclass import PythonPackage, PythonModule, PythonClass, UmlMethod, ClassAttribute, InstanceAttribute, Attribute, PackageType
+from tests.modules.withnestednamespace import branches
+from py2puml.domain.umlclass import PythonPackage, PythonModule, PythonClass, UmlMethod, ClassAttribute, InstanceAttribute, Attribute, PackageType, ModuleImport
 
 SRC_DIR = Path(__file__).parent.parent.parent
 TESTS_DIR = SRC_DIR / 'tests'
@@ -108,6 +109,17 @@ class TestPythonModule(unittest.TestCase):
         actual_class_names = [_class.name for _class in module.classes]
 
         self.assertCountEqual(expected_class_names, actual_class_names)  #FIXME: test more than classes name
+
+    def test_visit_3(self):
+        """ Test that the import statements are correctly processed """
+
+        module = PythonModule(
+            name='branch',
+            fully_qualified_name='tests.modules.withnestednamespace.branches.branch',
+            path=MODULES_DIR / 'withnestednamespace' / 'branches' / 'branch.py'
+        )
+        module.visit()
+        self.assertEqual(5, len(module.imports))
 
     def test_has_classes(self):
         """ Test the has_classes property on a module containing two classes """
@@ -268,6 +280,21 @@ class TestPythonPackage(unittest.TestCase):
         self.assertEqual(1, len(package_withoutumlitemleaf .modules))
         self.assertEqual(0, len(package_withoutumlitemleaf .subpackages))
 
+    def test_resolve_relative_imports(self):
+        """ Test resolve_relative_imports method """
+        package = PythonPackage.from_imported_package(tests.modules.withnestednamespace)
+        package.walk()
+        pkg_branches = package.subpackages['branches']
+        module_branch = pkg_branches.modules[0]
+        self.assertIsNone(module_branch.imports['OakLeaf'].fully_qualified_name)
+
+        package.resolve_relative_imports()
+
+        expected_value = 'tests.modules.withnestednamespace.nomoduleroot.modulechild.leaf'
+        actual_value = module_branch.imports['OakLeaf'].fully_qualified_name
+
+        self.assertEqual(expected_value, actual_value)
+
     def test_find_all_classes_1(self):
         """ Test find_all_classes method on a package containing modules only """
         all_classes = self.package.find_all_classes()
@@ -278,7 +305,7 @@ class TestPythonPackage(unittest.TestCase):
         package = PythonPackage.from_imported_package(tests.modules.withnestednamespace)
         package.walk()
         all_classes = package.find_all_classes()
-        self.assertEqual(10, len(all_classes))
+        self.assertEqual(11, len(all_classes))
 
     def test_find_all_modules_1(self):
         """ Test find_all_classes method on a package containing modules only """
@@ -391,3 +418,64 @@ class TestInstanceAttributes(unittest.TestCase):
         expected_result = 'attribute2'
         actual_result = self.untyped_attribute.as_puml
         self.assertEqual(expected_result, actual_result)
+
+
+class TestModuleImport(unittest.TestCase):
+
+    def test_resolve_relative_import(self):
+        """ Test the resolve_relative_import method with a 2-level relative import. The relative module qualified
+        name passed as input 'nomoduleroot.modulechild.leaf' correspond in the Python module to the source code
+        '..nomoduleroot.modulechild.leaf' """
+
+        module_import = ModuleImport(
+            module_name='nomoduleroot.modulechild.leaf',
+            name='OakLeaf',
+            alias=None,
+            level=2
+        )
+        package = PythonPackage.from_imported_package(tests.modules.withnestednamespace)
+        package.walk()
+        branches_package = package.subpackages['branches']
+        branch_module = branches_package.modules[0]
+
+        expected_result = 'tests.modules.withnestednamespace.nomoduleroot.modulechild.leaf'
+        module_import.resolve_relative_import(branch_module)
+
+        self.assertEqual(expected_result, module_import.fully_qualified_name)
+
+    def test_resolve_relative_import_2(self):
+        """ Test the resolve_relative_import method with a 1-level relative import. The relative module qualified
+        name passed as input 'trunks.trunk' correspond in the Python module to the source code
+        '.trunkss.trunk' """
+
+        module_import = ModuleImport(
+            module_name='trunks.trunk',
+            name='Trunk',
+            alias=None,
+            level=1
+        )
+        package = PythonPackage.from_imported_package(tests.modules.withnestednamespace)
+        package.walk()
+        tree_module = package.modules[0]
+
+        expected_result = 'tests.modules.withnestednamespace.trunks.trunk'
+        module_import.resolve_relative_import(tree_module)
+
+        self.assertEqual(expected_result, module_import.fully_qualified_name)
+
+    def test_resolve_relative_import_3(self):
+        """ Test the resolve_relative_import method raises and error when import cannot be resolved due to parent missing in module hierarchy"""
+
+        module_import = ModuleImport(
+            module_name='trunks.trunk',
+            name='Trunk',
+            alias=None,
+            level=3
+        )
+        package = PythonPackage.from_imported_package(tests.modules.withnestednamespace)
+        package.walk()
+        tree_module = package.modules[0]
+
+        with self.assertRaises(Exception):
+            module_import.resolve_relative_import(tree_module)
+

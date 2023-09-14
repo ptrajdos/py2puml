@@ -7,8 +7,8 @@ from textwrap import dedent
 
 from pytest import mark
 
-from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor, SignatureVariablesCollector, ClassVisitor, BaseClassVisitor
-from py2puml.domain.umlclass import ClassAttribute, InstanceAttribute
+from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor, SignatureVariablesCollector, ClassVisitor, BaseClassVisitor, ModuleVisitor
+from py2puml.domain.umlclass import ClassAttribute, InstanceAttribute, ModuleImport
 from tests.asserts.variable import assert_Variable
 from tests.modules.withmethods import withmethods, withinheritedmethods
 
@@ -270,4 +270,25 @@ class TestBaseClassVisitor(unittest.TestCase):
         visitor = BaseClassVisitor()
         visitor.visit(node)
         self.assertEqual('package.module.BaseClass', visitor.qualified_name)
+
+
+class TestModuleVisitor(unittest.TestCase):
+
+    def test_visit(self):
+        """ Test that the visit method works correctly on various import statements and that the 'module_imports'
+        attribute has the correct value """
+        source_code = 'from dataclasses import dataclass\nfrom typing import List, Optional\nfrom ' \
+                      '..nomoduleroot.modulechild.leaf import OakLeaf\nfrom ..nomoduleroot.modulechild.leaf import ' \
+                      'CommownLeaf as CommonLeaf'
+        ast = parse(source_code)
+        visitor = ModuleVisitor('dummy.root.fqn')
+        visitor.visit(ast)
+
+        module_import_0 = ModuleImport(module_name='dataclasses', name='dataclass')
+        module_import_1 = ModuleImport(module_name='typing', name='List')
+        module_import_2 = ModuleImport(module_name='typing', name='Optional')
+        module_import_3 = ModuleImport(module_name='nomoduleroot.modulechild.leaf', name='OakLeaf', level=2)
+        module_import_4 = ModuleImport(module_name='nomoduleroot.modulechild.leaf', name='CommownLeaf', alias='CommonLeaf', level=2)
+        expected_imports = [module_import_0, module_import_1, module_import_2, module_import_3, module_import_4]
+        self.assertCountEqual(expected_imports, visitor.module_imports)
 

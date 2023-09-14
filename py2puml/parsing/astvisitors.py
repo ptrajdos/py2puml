@@ -1,7 +1,7 @@
 from typing import Dict, List, Tuple
 from ast import (
     NodeVisitor, arg, expr, ClassDef,
-    FunctionDef, Assign, AnnAssign,
+    FunctionDef, Assign, AnnAssign, ImportFrom,
     Attribute, Name, Subscript, get_source_segment, parse
 )
 from collections import namedtuple
@@ -347,21 +347,32 @@ class ConstructorVisitor(NodeVisitor):
 class ModuleVisitor(NodeVisitor):
 
     def __init__(self, root_fqn):
-        self.classes = []
+        self.classes:List[umlclass.PythonClass] = []
         self.enums = []
         self.namedtuples = []
         self.root_fqn = root_fqn
+        self.module_imports: List[umlclass.ModuleImport] = []
 
     def visit_ClassDef(self, node: ClassDef):
         class_type = getattr(import_module(self.root_fqn), node.name)
         _class = umlclass.PythonClass.from_type(class_type)
         visitor = ClassVisitor(class_type, self.root_fqn)
         visitor.visit(node)
-        fully_qualified_name = '.'.join([self.root_fqn, node.name])
         for attribute in visitor.attributes:
             _class.attributes.append(attribute)
         for method in visitor.uml_methods:
             _class.methods.append(method)
 
         self.classes.append(_class)
+
+    def visit_ImportFrom(self, node: ImportFrom):
+        for name in node.names:
+            module_import = umlclass.ModuleImport(
+                module_name=node.module,
+                name=name.name,
+                alias=name.asname,
+                level=node.level
+            )
+            self.module_imports.append(module_import)
+
 
