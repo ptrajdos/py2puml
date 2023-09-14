@@ -212,7 +212,7 @@ class TestClassVisitor(unittest.TestCase):
         actual_methods = [method.name for method in visitor.uml_methods]
         self.assertCountEqual(expected_methods, actual_methods)
 
-        self.assertEqual(0, len(visitor.parent_classes_fqn))
+        self.assertEqual(0, len(visitor.parent_classes_pqn))
 
     def test_class_with_inherited_methods(self):
         class_source = getsource(withinheritedmethods.ThreeDimensionalPoint)
@@ -230,8 +230,8 @@ class TestClassVisitor(unittest.TestCase):
         actual_methods = [method.name for method in visitor.uml_methods]
         self.assertCountEqual(expected_methods, actual_methods)
 
-        self.assertIn('Point', visitor.parent_classes_fqn)
-        self.assertEqual(1, len(visitor.parent_classes_fqn))
+        self.assertIn('Point', visitor.parent_classes_pqn)
+        self.assertEqual(1, len(visitor.parent_classes_pqn))
 
     def test_class_with_inherited_methods_2(self):
         class_source = getsource(withinheritedmethods.ThreeDimensionalCoordinates)
@@ -249,8 +249,8 @@ class TestClassVisitor(unittest.TestCase):
         actual_methods = [method.name for method in visitor.uml_methods]
         self.assertCountEqual(expected_methods, actual_methods)
 
-        self.assertIn('withmethods.withmethods.Coordinates', visitor.parent_classes_fqn)
-        self.assertEqual(1, len(visitor.parent_classes_fqn))
+        self.assertIn('withmethods.withmethods.Coordinates', visitor.parent_classes_pqn)
+        self.assertEqual(1, len(visitor.parent_classes_pqn))
 
 
 class TestBaseClassVisitor(unittest.TestCase):

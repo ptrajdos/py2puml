@@ -338,6 +338,34 @@ class PythonPackage:
         for subpackage in self.subpackages.values():
             subpackage.resolve_relative_imports()
 
+    def resolve_class_inheritance(self):
+        """ Resolve class inheritance by assigning a value to the key(s) of the parent_classes attribute in PythonClass.
+
+        Check first if the parent class is a class in the same module, otherwise check in other check in import statements
+
+        During AST parsing, only the partially_qualified_name of the base class can be inferred. This method assigns the
+        PythonClass object for every base class if any. This has to be done once all classes in a given package have
+        been identified. """
+        all_classes = self.find_all_classes()
+        classes_by_fqn = {_class.fully_qualified_name: _class for _class in all_classes}
+
+        for _class in all_classes:
+            if _class.base_classes:
+                for base_class_pqn in _class.base_classes.keys():
+                    base_class = None
+                    if base_class_pqn in _class.module:
+                        base_class = _class.module.find_class_by_name(base_class_pqn)
+                    elif base_class_pqn in _class.module.imports.keys():
+                        module_import = _class.module.imports[base_class_pqn]
+                        imported_module_fqn = module_import.fully_qualified_name
+                        base_class_name = module_import.name
+                        base_class_fqn = f'{imported_module_fqn}.{base_class_name}'
+                        if base_class_fqn in classes_by_fqn.keys():
+                            base_class = classes_by_fqn[base_class_fqn]
+
+                    if base_class:
+                        _class.base_classes[base_class_pqn] = base_class
+
     @property
     def parent_fully_qualified_name(self):
         return '.'.join(self.fully_qualified_name.split('.')[:-1])
@@ -416,6 +444,7 @@ class PythonClass:
     fully_qualified_name: str
     attributes: List = field(default_factory=list)
     methods: List = field(default_factory=list)
+    base_classes: Dict[str, PythonClass] = field(default_factory=dict)
     module: PythonModule = None
 
     @classmethod

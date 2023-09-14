@@ -295,6 +295,40 @@ class TestPythonPackage(unittest.TestCase):
 
         self.assertEqual(expected_value, actual_value)
 
+    def test_resolve_class_inheritance_1(self):
+        """ Test resolve_class_inheritance method when the class and its base class are in the same module """
+        package = PythonPackage.from_imported_package(tests.modules)
+        package.walk()
+        package.resolve_relative_imports()
+        package.resolve_class_inheritance()
+
+        pkg_withnestednamespace = package.subpackages['withnestednamespace']
+        pkg_branches = pkg_withnestednamespace.subpackages['branches']
+        module_branch = pkg_branches.modules[0]
+        class_oak_branch = module_branch.classes[1]
+
+        expected_fully_qualified_name = 'tests.modules.withnestednamespace.branches.branch.Branch'
+        actual_fully_qualified_name = class_oak_branch.base_classes['Branch'].fully_qualified_name
+        self.assertEqual(expected_fully_qualified_name, actual_fully_qualified_name)
+
+    def test_resolve_class_inheritance_2(self):
+        """ Test resolve_class_inheritance method when the class and its base class are in different modules. Also tests
+         that aliased import are correctly resolved (in this case 'CommonLeaf' is an alias of the 'CommownLeaf' class in
+         the 'leaf' module """
+        package = PythonPackage.from_imported_package(tests.modules)
+        package.walk()
+        package.resolve_relative_imports()
+        package.resolve_class_inheritance()
+
+        pkg_withnestednamespace = package.subpackages['withnestednamespace']
+        pkg_branches = pkg_withnestednamespace.subpackages['branches']
+        module_branch = pkg_branches.modules[0]
+        class_birch_leaf = module_branch.classes[2]
+
+        expected_fully_qualified_name = 'tests.modules.withnestednamespace.nomoduleroot.modulechild.leaf.CommownLeaf'
+        actual_fully_qualified_name = class_birch_leaf.base_classes['CommonLeaf'].fully_qualified_name
+        self.assertEqual(expected_fully_qualified_name, actual_fully_qualified_name)
+
     def test_find_all_classes_1(self):
         """ Test find_all_classes method on a package containing modules only """
         all_classes = self.package.find_all_classes()

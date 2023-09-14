@@ -80,7 +80,7 @@ class ClassVisitor(NodeVisitor):
         self.class_name: str = None
         self.attributes = []
         self.uml_methods: List[umlclass.UmlMethod] = []
-        self.parent_classes_fqn = []
+        self.parent_classes_pqn = []
 
     def visit_Assign(self, node: Assign):
         """ Retrieve class attribute """
@@ -102,7 +102,7 @@ class ClassVisitor(NodeVisitor):
             for base in node.bases:
                 base_visitor = BaseClassVisitor()
                 base_visitor.visit(base)
-                self.parent_classes_fqn.append(base_visitor.qualified_name)
+                self.parent_classes_pqn.append(base_visitor.qualified_name)
 
         self.generic_visit(node)
 
@@ -362,7 +362,8 @@ class ModuleVisitor(NodeVisitor):
             _class.attributes.append(attribute)
         for method in visitor.uml_methods:
             _class.methods.append(method)
-
+        for parent_class_pqn in visitor.parent_classes_pqn:
+            _class.base_classes[parent_class_pqn] = None
         self.classes.append(_class)
 
     def visit_ImportFrom(self, node: ImportFrom):
