@@ -260,7 +260,8 @@ class PythonPackage:
         Uses the setuptools.find_namespace_packages method to search recursively for regular and namespace
         subpackages of a given root package (the instance 'self' in this case). Create instances of PythonPackage
         object when a subpackage is found and add it as a subpackage while preserving hierarchy (see implementation
-        in method _add_subpackage ).
+        in method _add_subpackage ). In case the root package is a namespace package, a temporary ``__init__.py`` is
+        created so that :meth:`find_namespace_packages` can search properly and then deleted.
 
         Since setuptools.find_namespace_packages flattens the package hierarchy, the instance attribute
         'all_packages' is used to store all packages found (including the top-level package). New packages found are
@@ -279,7 +280,13 @@ class PythonPackage:
 
         self.all_packages[self.fully_qualified_name] = self
 
-        namespace_packages_names = find_namespace_packages(str(self.path))
+        if self._type == PackageType.NAMESPACE:
+            temp_init_filepath = Path(self.path) / '__init__.py'
+            with open(temp_init_filepath, 'w'):
+                namespace_packages_names = find_namespace_packages(str(self.path))
+            temp_init_filepath.unlink()
+        else:
+            namespace_packages_names = find_namespace_packages(str(self.path))
         namespace_packages_names.insert(0, None)
 
         for namespace_package_name in namespace_packages_names:
