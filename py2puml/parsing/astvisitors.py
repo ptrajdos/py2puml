@@ -81,19 +81,27 @@ class ClassVisitor(NodeVisitor):
         self.attributes = []
         self.uml_methods: List[umlclass.UmlMethod] = []
         self.parent_classes_pqn = []
+        self.decorators = []
+        self.is_dataclass = False
 
     def visit_Assign(self, node: Assign):
         """ Retrieve class attribute """
         for target in node.targets:
-            class_attribute = umlclass.ClassAttribute(name=target.id)
-            self.attributes.append(class_attribute)
+            if self.is_dataclass:
+                attribute = umlclass.InstanceAttribute(name=target.id)
+            else:
+                attribute = umlclass.ClassAttribute(name=target.id)
+            self.attributes.append(attribute)
 
     def visit_AnnAssign(self, node: AnnAssign):
         """ Retrieve annotated class attribute """
         type_visitor = TypeVisitor()
         _type = type_visitor.visit(node.annotation)
-        class_attribute = umlclass.ClassAttribute(name=node.target.id, _type=_type)
-        self.attributes.append(class_attribute)
+        if self.is_dataclass:
+            attribute = umlclass.InstanceAttribute(name=node.target.id, _type=_type)
+        else:
+            attribute = umlclass.ClassAttribute(name=node.target.id, _type=_type)
+        self.attributes.append(attribute)
 
     def visit_ClassDef(self, node: ClassDef):
         """ Retrieve name of the class and base class if any """
@@ -103,6 +111,14 @@ class ClassVisitor(NodeVisitor):
                 base_visitor = BaseClassVisitor()
                 base_visitor.visit(base)
                 self.parent_classes_pqn.append(base_visitor.qualified_name)
+
+        if node.decorator_list:
+            for decorator_node in node.decorator_list:
+                visitor = DecoratorVisitor()
+                visitor.visit(decorator_node)
+                self.decorators.append(visitor.decorator_type)
+                if visitor.decorator_type == 'dataclass':
+                    self.is_dataclass = True
 
         self.generic_visit(node)
 
@@ -117,6 +133,15 @@ class ClassVisitor(NodeVisitor):
             constructor_visitor.visit(constructor_ast)
             for attribute in constructor_visitor.instance_attributes:
                 self.attributes.append(attribute)
+
+
+class DecoratorVisitor(NodeVisitor):
+
+    def __init__(self,  *args, **kwargs):
+        self.decorator_type: str = None
+
+    def visit_Name(self, node: Name):
+        self.decorator_type = node.id
 
 
 class BaseClassVisitor(NodeVisitor):

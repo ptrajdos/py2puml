@@ -11,6 +11,7 @@ from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor,
 from py2puml.domain.umlclass import ClassAttribute, InstanceAttribute, ModuleImport
 from tests.asserts.variable import assert_Variable
 from tests.modules.withmethods import withmethods, withinheritedmethods
+from tests.modules import withcomposition
 
 
 class ParseMyConstructorArguments:
@@ -251,6 +252,19 @@ class TestClassVisitor(unittest.TestCase):
 
         self.assertIn('withmethods.withmethods.Coordinates', visitor.parent_classes_pqn)
         self.assertEqual(1, len(visitor.parent_classes_pqn))
+
+    def test_dataclass(self):
+        """ Test the ClassVisitor with a dataclass """
+        module_source = getsource(withcomposition)
+        module_ast = parse(module_source)
+        visitor = ClassVisitor(withcomposition.Address, 'tests.modules.withcomposition')
+        visitor.visit(module_ast.body[2])
+
+        self.assertEqual('Address', visitor.class_name)
+        for attribute, expected_name in zip(visitor.attributes, ['street', 'zipcode', 'city']):
+            with self.subTest('Message', name=expected_name):
+                self.assertIsInstance(attribute, InstanceAttribute)
+                self.assertEqual(expected_name, attribute.name)
 
 
 class TestBaseClassVisitor(unittest.TestCase):
