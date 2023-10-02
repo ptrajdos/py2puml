@@ -8,8 +8,10 @@ import tests.modules.withsubdomain
 from tests.modules.withmethods.withmethods import Point
 from tests.modules.withnestednamespace.withoutumlitemroot.withoutumlitemleaf import withoutumlitem
 from tests.modules.withnestednamespace.withonlyonesubpackage.underground.roots import roots
+from tests.modules.withnestednamespace.withonlyonesubpackage.underground import Soil
 from tests.modules.withnestednamespace import branches
 from py2puml.domain.umlclass import PythonPackage, PythonModule, PythonClass, UmlMethod, ClassAttribute, InstanceAttribute, Attribute, PackageType, ModuleImport
+
 
 SRC_DIR = Path(__file__).parent.parent.parent
 TESTS_DIR = SRC_DIR / 'tests'
@@ -55,6 +57,12 @@ class TestPythonClass(unittest.TestCase):
         self.assertEqual('Point', _class.name)
         self.assertEqual('tests.modules.withmethods.withmethods.Point', _class.fully_qualified_name)
 
+    def test_from_type_init_module(self):
+        """ Test the from_type alternate constructor with a class initializes in a __init__ module """
+        _class = PythonClass.from_type(Soil)
+        expected_fqn = 'tests.modules.withnestednamespace.withonlyonesubpackage.underground.Soil'
+        self.assertEqual(expected_fqn, _class.fully_qualified_name)
+
     def test_as_puml(self):
         expected_result = '''class tests.modules.withmethods.withmethods.Point {
   PI: float {static}
@@ -69,7 +77,7 @@ class TestPythonClass(unittest.TestCase):
   Tuple[float, str] get_coordinates(self)
   __init__(self, int x, Tuple[bool] y)
   int do_something(self, posarg_nohint, str posarg_hint, posarg_default)
-}'''
+}\n'''
 
         actual_result = self.point_class.as_puml
 
@@ -187,6 +195,16 @@ class TestPythonPackage(unittest.TestCase):
         self.assertIn(module_obj, package.modules)
         self.assertTrue(module_obj.has_classes)
         self.assertEqual(package, module_obj.parent_package)
+
+    def test_add_module_init(self):
+        """ Test the _add_module method on a __init__ module containing class definition """
+        package = PythonPackage(path=MODULES_DIR / 'withsubdomain', name='withsubdomain',
+                                fully_qualified_name='tests.modules.withsubdomain')
+        package.all_packages['tests.modules.withsubdomain'] = package
+        package._add_module('tests.modules.withsubdomain.__init__')
+
+        self.assertEqual(1, len(package.classes))
+        self.assertEqual(1, len(package.modules))
 
     def test_add_subpackage(self):
         """ Test the _add_subpackage method """
@@ -369,7 +387,7 @@ class TestPythonPackage(unittest.TestCase):
         expected_result = '''namespace tests.modules.withsubdomain {
   namespace withsubdomain {}
   namespace subdomain.insubdomain {}
-}'''
+}\n'''
         actual_result = package.as_puml
         print(actual_result)
         self.assertEqual(expected_result, actual_result)
@@ -386,7 +404,7 @@ class TestPythonPackage(unittest.TestCase):
   namespace withonlyonesubpackage.underground {
     namespace roots.roots {}
   }
-}'''
+}\n'''
         actual_result = package.as_puml
         print(actual_result)
         self.assertEqual(expected_result, actual_result)

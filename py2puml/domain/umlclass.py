@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from typing import List, Dict
 from dataclasses import dataclass, field
 from pkgutil import iter_modules
@@ -157,13 +158,16 @@ class PythonPackage:
     Basic instantiation of objects is easily done with the 'from_imported_package' constructor method. To search
     recursively for subpackages and modules, use the 'walk' method.
 
+    Python packages can also contain classes if these are declared in the __init__.py module.
+
     Attributes:
         path (Path): path to the Python package folder
         name (str): name of the Python package
         fully_qualified_name (str): fully qualified name of the Python package
         depth (int): package depth level relative to the root package. Root package has level 0.
         modules (List[PythonModule]): list of modules found in the package
-        subpackages (Dict[str, PythonPackage]): dictionary of subpackages found in the package"""
+        subpackages (Dict[str, PythonPackage]): dictionary of subpackages found in the package
+        classes (List[PythonClass]): classes declared on package level"""
     path: Path
     name: str
     fully_qualified_name: str
@@ -173,6 +177,7 @@ class PythonPackage:
     subpackages: Dict[str, PythonPackage] = field(default_factory=dict)
     _parent_package: PythonPackage = None
     all_packages: Dict[str, PythonPackage] = field(default_factory=dict)
+    classes: List[PythonClass] = field(default_factory=list)
 
     @property
     def parent_package(self) -> PythonPackage:
@@ -226,6 +231,10 @@ class PythonPackage:
         module.visit()
 
         if not skip_empty or module.has_classes:
+            if module.name == '__init__':
+                for _class in module.classes:
+                    self.classes.append(_class)
+
             parent_package = self.all_packages[module.parent_fully_qualified_name]
             module.parent_package = parent_package
 
@@ -307,7 +316,7 @@ class PythonPackage:
 
         Returns:
             List of PythonClass objects """
-        classes = []
+        classes = copy.copy(self.classes)
         for module in self.modules:
             classes.extend(module.classes)
         for subpackage in self.subpackages.values():
@@ -457,8 +466,21 @@ class PythonClass:
 
     @classmethod
     def from_type(cls, class_type):
+        """ Alternate class constructor from a class type object
+
+        In case the class is declared in a __init__.py module the class is said to belong to the parent package. Hence the __init__ module is omitted from the fully qualified name of the class.
+
+        Args:
+            class_type (type): the class type object """
+
         name = class_type.__name__
-        fully_qualified_name = '.'.join([class_type.__module__, name])
+
+        parent_fully_qualified_name = class_type.__module__
+        if parent_fully_qualified_name.endswith('__init__'):
+            fully_qualified_name = '.'.join([class_type.__module__[:-9], name])
+        else:
+            fully_qualified_name = '.'.join([class_type.__module__, name])
+
         return PythonClass(name=name, fully_qualified_name=fully_qualified_name)
 
     @property

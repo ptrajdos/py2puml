@@ -218,6 +218,8 @@ class MethodVisitor(NodeVisitor):
         self.uml_method: umlclass.UmlMethod
 
     def visit_FunctionDef(self, node: FunctionDef):
+        # FIXME: refactor with the DecoratorVisitor class
+        # TODO: can it handle getter/setter decorator?
         decorators = [decorator.id for decorator in node.decorator_list]
         is_static = 'staticmethod' in decorators
         is_class = 'classmethod' in decorators
