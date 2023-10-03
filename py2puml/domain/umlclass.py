@@ -439,7 +439,7 @@ class PythonPackage:
         if self.depth == 0:
             lines = puml_str.split('\n')
             clean_lines = [line for line in lines if (line.endswith('{') or line.endswith('}')) and '__init__' not in line]
-            puml_str = '\n'.join(clean_lines)
+            puml_str = '\n'.join(clean_lines) + '\n'
 
         return puml_str
 
@@ -490,7 +490,7 @@ class PythonClass:
             lines.append(f'  {attribute.as_puml}')
         for method in self.methods:
             lines.append(f'  {method.as_puml}')
-        lines.append('}')
+        lines.append('}\n')
 
         return '\n'.join(lines)
 
