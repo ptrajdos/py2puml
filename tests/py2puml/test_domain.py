@@ -234,9 +234,10 @@ class TestPythonPackage(unittest.TestCase):
 
         package_withsubdomain = package.subpackages['withsubdomain']
         self.assertEqual(PackageType.REGULAR, package_withsubdomain._type)
-        self.assertEqual(1, len(package_withsubdomain.modules))
+        self.assertEqual(2, len(package_withsubdomain.modules))
         self.assertEqual(1, len(package_withsubdomain.subpackages))
         self.assertEqual(1, package_withsubdomain.depth)
+        self.assertEqual(1, len(package_withsubdomain.classes))
 
         package_subdomain = package_withsubdomain.subpackages['subdomain']
         self.assertEqual(PackageType.REGULAR, package_subdomain._type)
@@ -282,6 +283,7 @@ class TestPythonPackage(unittest.TestCase):
         self.assertEqual(PackageType.REGULAR, pkg_underground._type)
         self.assertEqual(1, len(pkg_underground.modules))
         self.assertEqual(1, len(pkg_underground.subpackages))
+        self.assertEqual(1, len(pkg_underground.classes))
 
         pkg_roots = pkg_underground.subpackages['roots']
         self.assertEqual(PackageType.NAMESPACE, pkg_roots._type)

@@ -231,12 +231,12 @@ class PythonPackage:
         module.visit()
 
         if not skip_empty or module.has_classes:
-            if module.name == '__init__':
-                for _class in module.classes:
-                    self.classes.append(_class)
-
             parent_package = self.all_packages[module.parent_fully_qualified_name]
             module.parent_package = parent_package
+
+            if module.name == '__init__':
+                for _class in module.classes:
+                    parent_package.classes.append(_class)
 
     def _add_subpackage(self, subpackage_fully_qualified_name: str) -> PythonPackage:
         """ Add a new subpackage to a package from its name.
@@ -316,7 +316,7 @@ class PythonPackage:
 
         Returns:
             List of PythonClass objects """
-        classes = copy.copy(self.classes)
+        classes = []
         for module in self.modules:
             classes.extend(module.classes)
         for subpackage in self.subpackages.values():
