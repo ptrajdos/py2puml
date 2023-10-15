@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 from typing import List, Dict
 from dataclasses import dataclass, field
 from pkgutil import iter_modules
@@ -610,13 +609,16 @@ class ModuleImport:
 
         Args:
             module (PythonModule): module containing the import statement """
+        if self.level == 0:
+            raise ValueError(f"Imported object '{self.name}' is an absolute import. Only relative import are supported by 'resolve_relative_import'")
 
         parent = module
-        while self.level > 0:
+        level = self.level
+        while level > 0:
             if not parent.parent_package:
                 raise(Exception(f'Could not resolve relative import from {self.module_name} since package {module.fully_qualified_name} has no parent.'))
             parent = parent.parent_package
-            self.level -= 1
+            level -= 1
         self.fully_qualified_name = f'{parent.fully_qualified_name}.{self.module_name}'
 
     @property
