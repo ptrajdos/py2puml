@@ -5,12 +5,13 @@ import tests.modules
 import tests.modules.withabstract
 import tests.modules.withnestednamespace
 import tests.modules.withsubdomain
+import tests.modules.withmethods
+import tests.modules.withmethods.withinheritedmethods
 from tests.modules.withmethods.withmethods import Point
 from tests.modules.withnestednamespace.withoutumlitemroot.withoutumlitemleaf import withoutumlitem
 from tests.modules.withnestednamespace.withonlyonesubpackage.underground.roots import roots
 from tests.modules.withnestednamespace.withonlyonesubpackage.underground import Soil
-from tests.modules.withnestednamespace import branches
-from py2puml.domain.umlclass import PythonPackage, PythonModule, PythonClass, UmlMethod, ClassAttribute, InstanceAttribute, Attribute, PackageType, ModuleImport
+from py2puml.domain.umlclass import PythonPackage, PythonModule, PythonClass, UmlMethod, ClassAttribute, InstanceAttribute, Attribute, PackageType, ImportStatement
 
 
 SRC_DIR = Path(__file__).parent.parent.parent
@@ -127,7 +128,7 @@ class TestPythonModule(unittest.TestCase):
             path=MODULES_DIR / 'withnestednamespace' / 'branches' / 'branch.py'
         )
         module.visit()
-        self.assertEqual(5, len(module.imports))
+        self.assertEqual(5, len(module.import_statements))
 
     def test_has_classes(self):
         """ Test the has_classes property on a module containing two classes """
@@ -306,12 +307,12 @@ class TestPythonPackage(unittest.TestCase):
         package.walk()
         pkg_branches = package.subpackages['branches']
         module_branch = pkg_branches.modules[0]
-        self.assertIsNone(module_branch.imports['OakLeaf'].fully_qualified_name)
+        self.assertIsNone(module_branch.import_statements['OakLeaf'].fully_qualified_name)
 
         package.resolve_relative_imports()
 
         expected_value = 'tests.modules.withnestednamespace.nomoduleroot.modulechild.leaf'
-        actual_value = module_branch.imports['OakLeaf'].fully_qualified_name
+        actual_value = module_branch.import_statements['OakLeaf'].fully_qualified_name
 
         self.assertEqual(expected_value, actual_value)
 
@@ -481,7 +482,7 @@ class TestModuleImport(unittest.TestCase):
         name passed as input 'nomoduleroot.modulechild.leaf' correspond in the Python module to the source code
         '..nomoduleroot.modulechild.leaf' """
 
-        module_import = ModuleImport(
+        module_import = ImportStatement(
             module_name='nomoduleroot.modulechild.leaf',
             name='OakLeaf',
             alias=None,
@@ -500,9 +501,9 @@ class TestModuleImport(unittest.TestCase):
     def test_resolve_relative_import_2(self):
         """ Test the resolve_relative_import method with a 1-level relative import. The relative module qualified
         name passed as input 'trunks.trunk' correspond in the Python module to the source code
-        '.trunkss.trunk' """
+        '.trunks.trunk' """
 
-        module_import = ModuleImport(
+        module_import = ImportStatement(
             module_name='trunks.trunk',
             name='Trunk',
             alias=None,
@@ -520,7 +521,7 @@ class TestModuleImport(unittest.TestCase):
     def test_resolve_relative_import_3(self):
         """ Test the resolve_relative_import method raises and error when import cannot be resolved due to parent missing in module hierarchy"""
 
-        module_import = ModuleImport(
+        module_import = ImportStatement(
             module_name='trunks.trunk',
             name='Trunk',
             alias=None,

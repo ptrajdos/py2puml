@@ -74,7 +74,7 @@ class PythonModule:
     fully_qualified_name: str
     path: Path
     classes: List[PythonClass] = field(default_factory=list)
-    imports: Dict[str, ModuleImport] = field(default_factory=dict)
+    import_statements: Dict[str, ImportStatement] = field(default_factory=dict)
     _parent_package: PythonPackage = None
 
     @classmethod
@@ -107,9 +107,9 @@ class PythonModule:
 
     def visit(self):
         """ Visit AST node corresponding to the module in order to find classes. Import statement are also defined by
-         this method and stored in a dictionary for faster look-up later. The fully_qualified_name property of
-         ModuleImport objects is not set at this stage. It will be done by the resolve_relative_imports method once the
-         packages hierarchy is fully-defined."""
+        this method and stored in a dictionary for faster look-up later. The fully_qualified_name property of
+        ImportStatement objects is not set at this stage. It will be done by the :meth:`resolve_relative_imports´ method
+        once the packages hierarchy is fully-defined. """
 
         with open(self.path, 'r') as fref:
             content = fref.read()
@@ -122,11 +122,11 @@ class PythonModule:
             _class.module = self
             self.classes.append(_class)
 
-        for module_import in visitor.module_imports:
-            if module_import.alias:
-                self.imports[module_import.alias] = module_import
+        for import_statement in visitor.imports:
+            if import_statement.alias:
+                self.import_statements[import_statement.alias] = import_statement
             else:
-                self.imports[module_import.name] = module_import
+                self.import_statements[import_statement.name] = import_statement
 
     def __contains__(self, class_name):
         return class_name in [_class.name for _class in self.classes]
@@ -347,9 +347,9 @@ class PythonPackage:
         modules """
 
         for module in self.modules:
-            for module_import in module.imports.values():
-                if module_import.is_relative:
-                    module_import.resolve_relative_import(module)
+            for import_statement in module.import_statements.values():
+                if import_statement.is_relative:
+                    import_statement.resolve_relative_import(module)
 
         for subpackage in self.subpackages.values():
             subpackage.resolve_relative_imports()
@@ -371,10 +371,10 @@ class PythonPackage:
                     base_class = None
                     if base_class_pqn in _class.module:
                         base_class = _class.module.find_class_by_name(base_class_pqn)
-                    elif base_class_pqn in _class.module.imports.keys():
-                        module_import = _class.module.imports[base_class_pqn]
-                        imported_module_fqn = module_import.fully_qualified_name
-                        base_class_name = module_import.name
+                    elif base_class_pqn in _class.module.import_statements.keys():
+                        import_statement = _class.module.import_statements[base_class_pqn]
+                        imported_module_fqn = import_statement.fully_qualified_name
+                        base_class_name = import_statement.name
                         base_class_fqn = f'{imported_module_fqn}.{base_class_name}'
                         if base_class_fqn in classes_by_fqn.keys():
                             base_class = classes_by_fqn[base_class_fqn]
@@ -591,13 +591,58 @@ class ClassDiagram:
 
 
 @dataclass
-class ModuleImport:
-    """ fully_qualified_name is set only once all modules and packages have been instantiated and their hierarchy
-    established (with the PythonPackage.walk method) by running the  PythonModule.resolve_relative_import()
+class ImportStatement:  # FIXME: rename this class to ImportedObject or ImportStatement
+    """ Class that represents ``import`` statement.
+
+     In Python ``import`` statements can take several forms and the goal of this class is to provide a common
+     interface for other methods to consume, for example when determining relations between classes (inheritance,
+     association).
+
+     The simplest form an import statement is shown below:
+
+     ..code:: python
+         import <module_name>
+
+    Individual objects in a module can also be directly imported as shown in the example below. In this context
+    objects can be for example: classes, module variables, other modules, packages, ... Several objects can be
+    imported in the same statement if objects are separated by a comma.
+
+    ..code:: python
+        from <module_name> import <name>
+        from <module_name> import <name1>, <name2>
+
+    The last form of import statement allows importing individual object with alternate names (called *alias*).
+
+    .. code:: python
+        from <module_name> import <name> as <alias>
+
+    You can also import an entire module under an alternate name:
+
+    .. code:: python
+        import <module_name> as <alias>
+
+    On top of that import statements can be defined absolutely or relatively. Absolute import statements are specified
+    as dot-separated full path from the project's root folder whereas relative import statements are specified
+    relatively to where the import statement is. In relative import statements, module are prepended by one or more
+    dot(s): a single dot (level 1) means that the referenced module (or package) is in the same folder of the current
+    location. Two dots (level 2) stand for the parent directory of the current location, three dots (level 3) stand for
+    the grandparent directory of the current location, and so on ...
+
+    ImportStatement objects are fully initialized in a two-step process. Objects are instantiated first by parsing the
+    AST of an import statement, which will define the attributes: ``module_name``, ``name``, ``alias`` and ``level``.
+    The module name in its canonical form is stored in the ``fully_qualified_name`` attribute which is set by running
+    the  :meth:`resolve_relative_import`. This can be done only once all modules and packages have been instantiated and
+    their hierarchy established (with the :meth:`PythonPackage.walk` method)
 
     Args:
-        module_name (str): qualified module name to be resolved. It should not be prepended by any '.' character.
-        level (int): how many level relative to the current module (self) should the module_name be resolved. """
+        module_name (str): qualified module name to be resolved. It should not be prepended by any '.' character, these
+        are instead reflected by the value of :attr:`level`. Note that this can also represent a package name.
+        name (str): name of the object to be imported.
+        alias (str): alternate name of the object to be imported.
+        level (int): how many level relative to the current module (self) should the module_name be resolved (0
+        corresponds to an absolute import.
+        fully_qualified_name (str): module/package name in its canonical form. """
+
     module_name: str
     name: str
     alias: str = None

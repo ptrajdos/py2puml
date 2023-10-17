@@ -378,7 +378,7 @@ class ModuleVisitor(NodeVisitor):
         self.enums = []
         self.namedtuples = []
         self.root_fqn = root_fqn
-        self.module_imports: List[umlclass.ModuleImport] = []
+        self.imports: List[umlclass.ImportStatement] = []
 
     def visit_ClassDef(self, node: ClassDef):
         class_type = getattr(import_module(self.root_fqn), node.name)
@@ -395,12 +395,12 @@ class ModuleVisitor(NodeVisitor):
 
     def visit_ImportFrom(self, node: ImportFrom):
         for name in node.names:
-            module_import = umlclass.ModuleImport(
+            import_statement = umlclass.ImportStatement(
                 module_name=node.module,
                 name=name.name,
                 alias=name.asname,
                 level=node.level
             )
-            self.module_imports.append(module_import)
+            self.imports.append(import_statement)
 
 
