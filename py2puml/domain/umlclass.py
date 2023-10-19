@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Dict
+from typing import List, Dict, Union
 from dataclasses import dataclass, field
 from pkgutil import iter_modules
 from pathlib import Path
@@ -167,7 +167,7 @@ class PythonPackage:
         modules (List[PythonModule]): list of modules found in the package
         subpackages (Dict[str, PythonPackage]): dictionary of subpackages found in the package
         classes (List[PythonClass]): classes declared on package level"""
-    path: Path
+    path: Union[Path, str]
     name: str
     fully_qualified_name: str
     depth: int = 0
@@ -284,8 +284,6 @@ class PythonPackage:
         Note:
             Found subpackages and modules are imported.
         """
-        # FIXME: crash when path passed as string and ending with '/'
-
         self.all_packages[self.fully_qualified_name] = self
 
         if self._type == PackageType.NAMESPACE:
@@ -294,7 +292,7 @@ class PythonPackage:
                 namespace_packages_names = find_namespace_packages(str(self.path))
             temp_init_filepath.unlink()
         else:
-            namespace_packages_names = find_namespace_packages(str(self.path))
+            namespace_packages_names = find_namespace_packages(Path(self.path))
         namespace_packages_names.insert(0, None)
 
         for namespace_package_name in namespace_packages_names:
