@@ -8,6 +8,7 @@ import tests.modules.withsubdomain
 import tests.modules.withmethods
 import tests.modules.withmethods.withinheritedmethods
 from tests.modules.withmethods.withmethods import Point
+from tests.modules.withmethods.withinheritedmethods import ThreeDimensionalCoordinates
 from tests.modules.withnestednamespace.withoutumlitemroot.withoutumlitemleaf import withoutumlitem
 from tests.modules.withnestednamespace.withonlyonesubpackage.underground.roots import roots
 from tests.modules.withnestednamespace.withonlyonesubpackage.underground import Soil
@@ -87,6 +88,26 @@ class TestPythonClass(unittest.TestCase):
 
 class TestPythonModule(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        import_withmethods = ImportStatement(module_name='tests.modules', name='withmethods', alias=None, level=0,
+                        fully_qualified_name='tests.modules')
+        import_point = ImportStatement(module_name='withmethods', name='Point', alias=None, level=1,
+                                           fully_qualified_name='tests.modules.withmethods.withmethods')
+        import_withmeth = ImportStatement(module_name='tests.modules', name='withmethods', alias='withmeth', level=0,
+                        fully_qualified_name='tests.modules')
+        import_pt = ImportStatement(module_name='withmethods', name='Point', alias='Pt', level=1,
+                                           fully_qualified_name='tests.modules.withmethods.withmethods')
+
+        module = PythonModule(name='withinheritedmethods',
+                              fully_qualified_name='tests.modules.withmethods.withinheritedmethods', path='.')
+        module.import_statements['withmethods'] = import_withmethods
+        module.import_statements['Point'] = import_point
+        module.import_statements['withmeth'] = import_withmeth
+        module.import_statements['Pt'] = import_pt
+
+        cls.module = module
+
     def test_from_imported_module(self):
         module = PythonModule.from_imported_module(tests.modules.withabstract)
         self.assertEqual('withabstract', module.name)
@@ -147,6 +168,30 @@ class TestPythonModule(unittest.TestCase):
         module = PythonModule.from_imported_module(withoutumlitem)
         module.visit()
         self.assertFalse(module.has_classes)
+
+    def test_resolve_class_name(self):
+        """ Test resolve_class_name """
+        expected_fqn = 'tests.modules.withmethods.withmethods.Point'
+        actual_fqn = self.module.resolve_class_name('Point')
+        self.assertEqual(expected_fqn, actual_fqn)
+
+    def test_resolve_class_name_alias(self):
+        """ Test resolve_class_name with an aliased class."""
+        expected_fqn = 'tests.modules.withmethods.withmethods.Point'
+        actual_fqn = self.module.resolve_class_name('Pt')
+        self.assertEqual(expected_fqn, actual_fqn)
+
+    def test_resolve_class_pqn(self):
+        """ Test resolve_class_pqn on a partially defined class name with relative import """
+        expected_fqn = 'tests.modules.withmethods.withmethods.Coordinates'
+        actual_fqn = self.module.resolve_class_pqn('withmethods.withmethods.Coordinates')
+        self.assertEqual(expected_fqn, actual_fqn)
+
+    def test_resolve_class_pqn_alias(self):
+        """ Test resolve_class_pqn on an aliased partially defined class name with relative import """
+        expected_fqn = 'tests.modules.withmethods.withmethods.Coordinates'
+        actual_fqn = self.module.resolve_class_pqn('withmeth.withmethods.Coordinates')
+        self.assertEqual(expected_fqn, actual_fqn)
 
 
 class TestPythonPackage(unittest.TestCase):
@@ -519,6 +564,23 @@ class TestModuleImport(unittest.TestCase):
         self.assertEqual(expected_result, module_import.fully_qualified_name)
 
     def test_resolve_relative_import_3(self):
+        """ Test the resolve_relative_import method when a whole module is imported """
+        module_import = ImportStatement(
+            module_name='withmethods',
+            name='Point',
+            alias=None,
+            level=1
+        )
+        package = PythonPackage.from_imported_package(tests.modules.withmethods)
+        package.walk()
+        module = package.modules[0]
+
+        expected_result = 'tests.modules.withmethods.withmethods'
+        module_import.resolve_relative_import(module)
+
+        self.assertEqual(expected_result, module_import.fully_qualified_name)
+
+    def test_resolve_relative_import_fail(self):
         """ Test the resolve_relative_import method raises and error when import cannot be resolved due to parent missing in module hierarchy"""
 
         module_import = ImportStatement(
@@ -533,4 +595,18 @@ class TestModuleImport(unittest.TestCase):
 
         with self.assertRaises(Exception):
             module_import.resolve_relative_import(tree_module)
+
+    def test_resolve_relative_import_fail_2(self):
+        """ Test that the resolve_relative_import method raises an exception when the imported object module name is
+        absolute """
+        module_import = ImportStatement(
+            module_name='tests.modules',
+            name='withmethods',
+            alias=None,
+            level=0
+        )
+        module = PythonModule(name='dummy', path='.', fully_qualified_name='dummy.dummy')
+
+        with self.assertRaises(ValueError):
+            module_import.resolve_relative_import(module)
 

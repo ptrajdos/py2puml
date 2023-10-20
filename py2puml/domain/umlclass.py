@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from typing import List, Dict, Union
 from dataclasses import dataclass, field
 from pkgutil import iter_modules
@@ -143,6 +144,42 @@ class PythonModule:
         for _class in self.classes:
             if class_name == _class.name:
                 return _class
+        return None
+
+    def resolve_class_name(self, class_name: str):
+        """ This method resolves a class name into a fully qualified class name.
+
+        It verifies first if the class belongs to parent module otherwise tries to resolve from the import statements
+        of the parent module. """
+
+        if not self:
+            raise AttributeError(f"Attribute 'module' in class {self.name} not initialized.")
+        if class_name in self:
+            return f'{self.fully_qualified_name}.{class_name}'
+        elif class_name in self.import_statements.keys():
+            import_statement = self.import_statements[class_name]
+            imported_module_fqn = import_statement.fully_qualified_name
+            return f'{imported_module_fqn}.{import_statement.name}'
+
+        return None
+
+    def resolve_class_pqn(self, class_pqn: str):
+        """ This method resolved a partially qualified class name into a fully qualified class name.
+
+        It tries to resolve from the import statements of the parent module. """
+
+        tokens = class_pqn.split('.')
+
+        if tokens[0] in self.import_statements.keys():
+            import_statement = self.import_statements[tokens[0]]
+            if not import_statement.fully_qualified_name:
+                raise ValueError(f"Imported object '{import_statement.name}' fully qualified name missing. Run resolve_relative_import first.")
+            imported_module_fqn = import_statement.fully_qualified_name
+            if import_statement.alias:
+                tokens[0] = import_statement.name
+                class_pqn = '.'.join(tokens)
+            return f'{imported_module_fqn}.{class_pqn}'
+
         return None
 
     @property
@@ -348,6 +385,8 @@ class PythonPackage:
             for import_statement in module.import_statements.values():
                 if import_statement.is_relative:
                     import_statement.resolve_relative_import(module)
+                else:
+                    import_statement.fully_qualified_name = import_statement.module_name
 
         for subpackage in self.subpackages.values():
             subpackage.resolve_relative_imports()
@@ -366,16 +405,15 @@ class PythonPackage:
         for _class in all_classes:
             if _class.base_classes:
                 for base_class_pqn in _class.base_classes.keys():
-                    base_class = None
-                    if base_class_pqn in _class.module:
-                        base_class = _class.module.find_class_by_name(base_class_pqn)
-                    elif base_class_pqn in _class.module.import_statements.keys():
-                        import_statement = _class.module.import_statements[base_class_pqn]
-                        imported_module_fqn = import_statement.fully_qualified_name
-                        base_class_name = import_statement.name
-                        base_class_fqn = f'{imported_module_fqn}.{base_class_name}'
-                        if base_class_fqn in classes_by_fqn.keys():
-                            base_class = classes_by_fqn[base_class_fqn]
+                    if '.' in base_class_pqn:
+                        base_class_fqn = _class.module.resolve_class_pqn(base_class_pqn)
+                    else:
+                        base_class_fqn = _class.module.resolve_class_name(base_class_pqn)
+
+                    if base_class_fqn in classes_by_fqn.keys():
+                        base_class = classes_by_fqn[base_class_fqn]
+                    else:
+                        base_class = None
 
                     if base_class:
                         _class.base_classes[base_class_pqn] = base_class
