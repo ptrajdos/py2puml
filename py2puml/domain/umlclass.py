@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 from typing import List, Dict, Union
 from dataclasses import dataclass, field
 from pkgutil import iter_modules
