@@ -34,3 +34,7 @@ class Point:
 
     def do_something(self, posarg_nohint, posarg_hint: str, posarg_default=3) -> int:
         return 44
+
+    @property
+    def description(self) -> str:
+        return "This is a description"

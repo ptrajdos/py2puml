@@ -7,7 +7,7 @@ from textwrap import dedent
 
 from pytest import mark
 
-from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor, SignatureVariablesCollector, ClassVisitor, BaseClassVisitor, ModuleVisitor
+from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor, SignatureVariablesCollector, ClassVisitor, BaseClassVisitor, ModuleVisitor, DecoratorVisitor
 from py2puml.domain.umlclass import ClassAttribute, InstanceAttribute, ImportStatement
 from tests.asserts.variable import assert_Variable
 from tests.modules.withmethods import withmethods, withinheritedmethods
@@ -205,7 +205,8 @@ class TestClassVisitor(unittest.TestCase):
             InstanceAttribute(name='hour_unit', _type='TimeUnit'),
             InstanceAttribute(name='time_resolution', _type='Tuple[str, TimeUnit]'),
             InstanceAttribute(name='x', _type='int'),
-            InstanceAttribute(name='y', _type='Tuple[bool]')]
+            InstanceAttribute(name='y', _type='Tuple[bool]'),
+            InstanceAttribute(name='description', _type='str')]
         actual_attributes = visitor.attributes
         self.assertCountEqual(expected_attributes, actual_attributes)
 
@@ -308,3 +309,21 @@ class TestModuleVisitor(unittest.TestCase):
 
         self.assertCountEqual(expected_imports, visitor.imports)
 
+
+class TestDecoratorVisitor(unittest.TestCase):
+
+    def test_visit(self):
+        source_code = '@staticmethod\nclass DummyClass:\n    pass'
+        ast = parse(source_code)
+        decorator_node = ast.body[0].decorator_list[0]
+        visitor = DecoratorVisitor()
+        visitor.visit(decorator_node)
+        self.assertEqual('staticmethod', visitor.decorator_type)
+
+    def test_visit_2(self):
+        source_code = '@unittest.mock.patch\nclass DummyClass:\n    pass'
+        ast = parse(source_code)
+        decorator_node = ast.body[0].decorator_list[0]
+        visitor = DecoratorVisitor()
+        visitor.visit(decorator_node)
+        self.assertEqual('unittest.mock.patch', visitor.decorator_type)

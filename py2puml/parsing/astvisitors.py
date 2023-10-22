@@ -125,7 +125,12 @@ class ClassVisitor(NodeVisitor):
     def visit_FunctionDef(self, node: FunctionDef):
         method_visitor = MethodVisitor()
         method_visitor.visit(node)
-        self.uml_methods.append(method_visitor.uml_method)
+        method = method_visitor.uml_method
+        if method.is_getter:
+            attribute = umlclass.InstanceAttribute(name=method.name, _type=method.return_type)
+            self.attributes.append(attribute)
+        else:
+            self.uml_methods.append(method)
 
         if node.name == '__init__' and True:
             constructor_visitor = ConstructorVisitor.from_class_type(self.class_type, self.root_fqn)
@@ -137,11 +142,21 @@ class ClassVisitor(NodeVisitor):
 
 class DecoratorVisitor(NodeVisitor):
 
-    def __init__(self,  *args, **kwargs):
-        self.decorator_type: str = None
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.elements = []
 
     def visit_Name(self, node: Name):
-        self.decorator_type = node.id
+        self.elements.append(node.id)
+
+    def visit_Attribute(self, node: Attribute):
+        """ Recursive call with 'generic_visit' so that Attributes are traversed """
+        self.generic_visit(node)
+        self.elements.append(node.attr)
+
+    @property
+    def decorator_type(self):
+        return '.'.join(self.elements)
 
 
 class BaseClassVisitor(NodeVisitor):
@@ -216,18 +231,24 @@ class MethodVisitor(NodeVisitor):
         super().__init__(*args, **kwargs)
         self.variables_namespace: List[Variable] = []
         self.uml_method: umlclass.UmlMethod
+        self.decorators = []
 
     def visit_FunctionDef(self, node: FunctionDef):
-        # FIXME: refactor with the DecoratorVisitor class
-        # TODO: can it handle getter/setter decorator?
-        decorators = [decorator.id for decorator in node.decorator_list]
-        is_static = 'staticmethod' in decorators
-        is_class = 'classmethod' in decorators
+
+        for decorator_node in node.decorator_list:
+            decorator_visitor = DecoratorVisitor()
+            decorator_visitor.visit(decorator_node)
+            if decorator_visitor.decorator_type:
+                self.decorators.append(decorator_visitor.decorator_type)
+
+        is_static = 'staticmethod' in self.decorators
+        is_class = 'classmethod' in self.decorators
+        is_getter = 'property' in self.decorators
         arguments_collector = SignatureVariablesCollector(skip_self=is_static)
         arguments_collector.visit(node)
         self.variables_namespace = arguments_collector.variables
 
-        self.uml_method = umlclass.UmlMethod(name=node.name, is_static=is_static, is_class=is_class)
+        self.uml_method = umlclass.UmlMethod(name=node.name, is_static=is_static, is_class=is_class, is_getter=is_getter)
 
         for argument in arguments_collector.variables:
             if argument.id == arguments_collector.class_self_id:
@@ -402,5 +423,3 @@ class ModuleVisitor(NodeVisitor):
                 level=node.level
             )
             self.imports.append(import_statement)
-
-

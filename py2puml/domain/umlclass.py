@@ -32,6 +32,7 @@ class UmlMethod:
     arguments: Dict = field(default_factory=dict)
     is_static: bool = False
     is_class: bool = False
+    is_getter: bool = False
     return_type: str = None
 
     @property
@@ -562,6 +563,9 @@ class Attribute(ABC):
 
     def __ne__(self, other):
         return not self == other
+
+    def __repr__(self):
+        return f"{type(self).__name__}(name='{self.name}')"
 
     @property
     @abstractmethod

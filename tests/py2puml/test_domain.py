@@ -60,7 +60,7 @@ class TestPythonClass(unittest.TestCase):
         self.assertEqual('tests.modules.withmethods.withmethods.Point', _class.fully_qualified_name)
 
     def test_from_type_init_module(self):
-        """ Test the from_type alternate constructor with a class initializes in a __init__ module """
+        """ Test the from_type alternate constructor with a class initialized in a __init__ module """
         _class = PythonClass.from_type(Soil)
         expected_fqn = 'tests.modules.withnestednamespace.withonlyonesubpackage.underground.Soil'
         self.assertEqual(expected_fqn, _class.fully_qualified_name)
