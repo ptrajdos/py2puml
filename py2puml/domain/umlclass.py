@@ -404,6 +404,7 @@ class PythonPackage:
 
         for _class in all_classes:
             if _class.base_classes:
+                remove_keys = []
                 for base_class_pqn in _class.base_classes.keys():
                     if '.' in base_class_pqn:
                         base_class_fqn = _class.module.resolve_class_pqn(base_class_pqn)
@@ -417,6 +418,11 @@ class PythonPackage:
 
                     if base_class:
                         _class.base_classes[base_class_pqn] = base_class
+                    else:
+                        remove_keys.append(base_class_pqn)
+
+                for key in remove_keys:
+                    del _class.base_classes[key]
 
     @property
     def parent_fully_qualified_name(self):
