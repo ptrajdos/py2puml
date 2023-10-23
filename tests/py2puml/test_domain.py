@@ -12,7 +12,7 @@ from tests.modules.withmethods.withmethods import Point
 from tests.modules.withnestednamespace.withoutumlitemroot.withoutumlitemleaf import withoutumlitem
 from tests.modules.withnestednamespace.withonlyonesubpackage.underground.roots import roots
 from tests.modules.withnestednamespace.withonlyonesubpackage.underground import Soil
-from py2puml.domain.umlclass import PythonPackage, PythonModule, PythonClass, UmlMethod, ClassAttribute, InstanceAttribute, Attribute, PackageType, ImportStatement
+from py2puml.domain.umlclass import PythonPackage, PythonModule, PythonClass, Method, ClassAttribute, InstanceAttribute, Attribute, PackageType, ImportStatement
 
 
 SRC_DIR = Path(__file__).parent.parent.parent
@@ -37,19 +37,19 @@ class TestPythonClass(unittest.TestCase):
                 InstanceAttribute(name='x', _type='int'),
                 InstanceAttribute(name='y', _type='Tuple[bool]')],
             methods=[
-                UmlMethod(
+                Method(
                     name='from_values',
                     arguments={'x': 'int', 'y': 'str'},
                     is_static=True,
                     return_type='Point'),
-                UmlMethod(
+                Method(
                     name='get_coordinates',
                     arguments={'self': None},
                     return_type='Tuple[float, str]'),
-                UmlMethod(
+                Method(
                     name='__init__',
                     arguments={'self': None, 'x': 'int', 'y': 'Tuple[bool]'}),
-                UmlMethod(
+                Method(
                     name='do_something',
                     arguments={'self': None, 'posarg_nohint': None, 'posarg_hint': 'str', 'posarg_default': None},
                     return_type='int')])

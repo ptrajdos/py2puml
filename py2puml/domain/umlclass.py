@@ -27,7 +27,7 @@ class UmlAttribute:
 
 
 @dataclass
-class UmlMethod:
+class Method:
     name: str
     arguments: Dict = field(default_factory=dict)
     is_static: bool = False
@@ -56,7 +56,7 @@ class UmlMethod:
 @dataclass
 class UmlClass(UmlItem):
     attributes: List[UmlAttribute]
-    methods: List[UmlMethod]
+    methods: List[Method]
     is_abstract: bool = False
 
 

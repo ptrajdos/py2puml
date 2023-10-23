@@ -79,7 +79,7 @@ class ClassVisitor(NodeVisitor):
         self.root_fqn = root_fqn
         self.class_name: str = None
         self.attributes = []
-        self.uml_methods: List[umlclass.UmlMethod] = []
+        self.methods: List[umlclass.Method] = []
         self.parent_classes_pqn = []
         self.decorators = []
         self.is_dataclass = False
@@ -125,12 +125,12 @@ class ClassVisitor(NodeVisitor):
     def visit_FunctionDef(self, node: FunctionDef):
         method_visitor = MethodVisitor()
         method_visitor.visit(node)
-        method = method_visitor.uml_method
+        method = method_visitor.method
         if method.is_getter:
             attribute = umlclass.InstanceAttribute(name=method.name, _type=method.return_type)
             self.attributes.append(attribute)
         else:
-            self.uml_methods.append(method)
+            self.methods.append(method)
 
         if node.name == '__init__' and True:
             constructor_visitor = ConstructorVisitor.from_class_type(self.class_type, self.root_fqn)
@@ -230,7 +230,7 @@ class MethodVisitor(NodeVisitor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.variables_namespace: List[Variable] = []
-        self.uml_method: umlclass.UmlMethod
+        self.method: umlclass.Method
         self.decorators = []
 
     def visit_FunctionDef(self, node: FunctionDef):
@@ -248,23 +248,23 @@ class MethodVisitor(NodeVisitor):
         arguments_collector.visit(node)
         self.variables_namespace = arguments_collector.variables
 
-        self.uml_method = umlclass.UmlMethod(name=node.name, is_static=is_static, is_class=is_class, is_getter=is_getter)
+        self.method = umlclass.Method(name=node.name, is_static=is_static, is_class=is_class, is_getter=is_getter)
 
         for argument in arguments_collector.variables:
             if argument.id == arguments_collector.class_self_id:
-                self.uml_method.arguments[argument.id] = None
+                self.method.arguments[argument.id] = None
             if argument.type_expr:
                 if hasattr(argument.type_expr, 'id'):
-                    self.uml_method.arguments[argument.id] = argument.type_expr.id
+                    self.method.arguments[argument.id] = argument.type_expr.id
                 else:
 
-                    self.uml_method.arguments[argument.id] = arguments_collector.datatypes[argument.id]
+                    self.method.arguments[argument.id] = arguments_collector.datatypes[argument.id]
             else:
-                self.uml_method.arguments[argument.id] = None
+                self.method.arguments[argument.id] = None
 
         if node.returns is not None:
             return_visitor = TypeVisitor()
-            self.uml_method.return_type = return_visitor.visit(node.returns)
+            self.method.return_type = return_visitor.visit(node.returns)
 
 
 class ConstructorVisitor(NodeVisitor):
@@ -408,7 +408,7 @@ class ModuleVisitor(NodeVisitor):
         visitor.visit(node)
         for attribute in visitor.attributes:
             _class.attributes.append(attribute)
-        for method in visitor.uml_methods:
+        for method in visitor.methods:
             _class.methods.append(method)
         for parent_class_pqn in visitor.parent_classes_pqn:
             _class.base_classes[parent_class_pqn] = None

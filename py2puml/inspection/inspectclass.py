@@ -5,7 +5,7 @@ from typing import Type, List, Dict
 from ast import parse, AST
 
 from py2puml.domain.umlitem import UmlItem
-from py2puml.domain.umlclass import UmlClass, UmlAttribute, UmlMethod
+from py2puml.domain.umlclass import UmlClass, UmlAttribute
 from py2puml.domain.umlrelation import UmlRelation, RelType
 from py2puml.parsing.astvisitors import ClassVisitor
 from py2puml.parsing.parseclassconstructor import parse_class_constructor
@@ -104,7 +104,7 @@ def inspect_methods(definition_methods: List, class_type: Type, root_module_name
     class_ast: AST = parse(class_source)
     visitor = ClassVisitor(class_type, root_module_name)
     visitor.visit(class_ast)
-    for method in visitor.uml_methods:
+    for method in visitor.methods:
         definition_methods.append(method)
 
 

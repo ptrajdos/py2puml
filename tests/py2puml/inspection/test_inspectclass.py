@@ -8,7 +8,6 @@ from py2puml.inspection.inspectmodule import inspect_module
 
 from tests.asserts.attribute import assert_attribute
 from tests.asserts.relation import assert_relation
-from tests.asserts.method import assert_method
 
 
 def test_inspect_module_should_find_static_and_instance_attributes(
@@ -194,7 +193,7 @@ def test_inspect_module_should_find_methods(
     assert point_umlitem.methods[1].name == 'get_coordinates'
     assert point_umlitem.methods[2].name == '__init__'
     assert point_umlitem.methods[3].name == 'do_something'
-    # FIXME: use 'assert_method' once UmlMethod restructured
+    # FIXME: use 'assert_method' once Method restructured
 
 
 def test_inspect_module_inherited_methods(
@@ -219,4 +218,4 @@ def test_inspect_module_inherited_methods(
     assert coordinates_3d_umlitem.methods[2].name == 'check_positive'
     assert coordinates_3d_umlitem.methods[0].name == '__init__'
     assert coordinates_3d_umlitem.methods[1].name == 'move'
-    # FIXME: use 'assert_method' once UmlMethod restructured
+    # FIXME: use 'assert_method' once Method restructured

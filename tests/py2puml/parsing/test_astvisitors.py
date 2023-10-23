@@ -211,7 +211,7 @@ class TestClassVisitor(unittest.TestCase):
         self.assertCountEqual(expected_attributes, actual_attributes)
 
         expected_methods = ['from_values', 'get_coordinates', '__init__', 'do_something']
-        actual_methods = [method.name for method in visitor.uml_methods]
+        actual_methods = [method.name for method in visitor.methods]
         self.assertCountEqual(expected_methods, actual_methods)
 
         self.assertEqual(0, len(visitor.parent_classes_pqn))
@@ -229,7 +229,7 @@ class TestClassVisitor(unittest.TestCase):
         self.assertCountEqual(expected_attributes, actual_attributes)
 
         expected_methods = ['__init__', 'move', 'check_positive']
-        actual_methods = [method.name for method in visitor.uml_methods]
+        actual_methods = [method.name for method in visitor.methods]
         self.assertCountEqual(expected_methods, actual_methods)
 
         self.assertIn('Point', visitor.parent_classes_pqn)
@@ -248,7 +248,7 @@ class TestClassVisitor(unittest.TestCase):
         self.assertCountEqual(expected_attributes, actual_attributes)
 
         expected_methods = ['__init__', 'move', 'check_negative']
-        actual_methods = [method.name for method in visitor.uml_methods]
+        actual_methods = [method.name for method in visitor.methods]
         self.assertCountEqual(expected_methods, actual_methods)
 
         self.assertIn('withmethods.withmethods.Coordinates', visitor.parent_classes_pqn)
