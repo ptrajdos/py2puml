@@ -329,7 +329,7 @@ class PythonPackage:
                 namespace_packages_names = find_namespace_packages(str(self.path))
             temp_init_filepath.unlink()
         else:
-            namespace_packages_names = find_namespace_packages(Path(self.path))
+            namespace_packages_names = find_namespace_packages(str(self.path))
         namespace_packages_names.insert(0, None)
 
         for namespace_package_name in namespace_packages_names:
@@ -636,7 +636,7 @@ class ClassDiagram:
 
 
 @dataclass
-class ImportStatement:  # FIXME: rename this class to ImportedObject or ImportStatement
+class ImportStatement:
     """ Class that represents ``import`` statement.
 
      In Python ``import`` statements can take several forms and the goal of this class is to provide a common

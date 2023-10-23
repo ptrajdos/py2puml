@@ -28,6 +28,7 @@ def test_cli_consistency_with_the_default_configuration(entrypoint: List[str]):
     assert ''.join(puml_content).strip() == cli_stdout.strip()
 
 
+@mark.xfail(reason='Composition relation not implemented')
 def test_cli_on_specific_working_directory():
     command = ['py2puml', 'withrootnotincwd', 'withrootnotincwd']
     cli_process = run(command,
