@@ -28,31 +28,31 @@ class TestPythonClass(unittest.TestCase):
             name='Point',
             fully_qualified_name='tests.modules.withmethods.withmethods.Point',
             attributes=[
-                ClassAttribute(name='PI', _type='float'),
+                ClassAttribute(name='PI', type_expr='float'),
                 ClassAttribute(name='origin'),
-                InstanceAttribute(name='coordinates', _type='Coordinates'),
-                InstanceAttribute(name='day_unit', _type='TimeUnit'),
-                InstanceAttribute(name='hour_unit', _type='TimeUnit'),
-                InstanceAttribute(name='time_resolution', _type='Tuple[str, TimeUnit]'),
-                InstanceAttribute(name='x', _type='int'),
-                InstanceAttribute(name='y', _type='Tuple[bool]')],
+                InstanceAttribute(name='coordinates', type_expr='Coordinates'),
+                InstanceAttribute(name='day_unit', type_expr='TimeUnit'),
+                InstanceAttribute(name='hour_unit', type_expr='TimeUnit'),
+                InstanceAttribute(name='time_resolution', type_expr='Tuple[str, TimeUnit]'),
+                InstanceAttribute(name='x', type_expr='int'),
+                InstanceAttribute(name='y', type_expr='Tuple[bool]')],
             methods=[
                 Method(
                     name='from_values',
                     arguments={'x': 'int', 'y': 'str'},
                     is_static=True,
-                    return_type='Point'),
+                    returntype_expr='Point'),
                 Method(
                     name='get_coordinates',
                     arguments={'self': None},
-                    return_type='Tuple[float, str]'),
+                    returntype_expr='Tuple[float, str]'),
                 Method(
                     name='__init__',
                     arguments={'self': None, 'x': 'int', 'y': 'Tuple[bool]'}),
                 Method(
                     name='do_something',
                     arguments={'self': None, 'posarg_nohint': None, 'posarg_hint': 'str', 'posarg_default': None},
-                    return_type='int')])
+                    returntype_expr='int')])
 
     def test_from_type(self):
         _class = PythonClass.from_type(Point)
@@ -461,22 +461,22 @@ class TestPythonPackage(unittest.TestCase):
 class TestClassAttributes(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.typed_attribute = ClassAttribute(name='PI', _type='float')
+        self.typed_attribute = ClassAttribute(name='PI', type_expr='float')
         self.untyped_attribute = ClassAttribute(name='origin')
 
     def test_constructor_typed(self):
-        class_attribute = ClassAttribute(name='PI', _type='float')
+        class_attribute = ClassAttribute(name='PI', type_expr='float')
         self.assertIsInstance(class_attribute, Attribute)
         self.assertIsInstance(class_attribute, ClassAttribute)
         self.assertEqual('PI', class_attribute.name)
-        self.assertEqual('float', class_attribute._type)
+        self.assertEqual('float', class_attribute.type_expr)
 
     def test_constructor_untyped(self):
         class_attribute = ClassAttribute(name='origin')
         self.assertIsInstance(class_attribute, Attribute)
         self.assertIsInstance(class_attribute, ClassAttribute)
         self.assertEqual('origin', class_attribute.name)
-        self.assertIsNone(class_attribute._type)
+        self.assertIsNone(class_attribute.type_expr)
 
     def test_as_puml_typed(self):
         expected_result = 'PI: float {static}'
@@ -492,22 +492,22 @@ class TestClassAttributes(unittest.TestCase):
 class TestInstanceAttributes(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.typed_attribute = InstanceAttribute(name='attribute1', _type='int')
+        self.typed_attribute = InstanceAttribute(name='attribute1', type_expr='int')
         self.untyped_attribute = InstanceAttribute(name='attribute2')
 
     def test_constructor_typed(self):
-        class_attribute = InstanceAttribute(name='attribute1', _type='int')
+        class_attribute = InstanceAttribute(name='attribute1', type_expr='int')
         self.assertIsInstance(class_attribute, Attribute)
         self.assertIsInstance(class_attribute, InstanceAttribute)
         self.assertEqual('attribute1', class_attribute.name)
-        self.assertEqual('int', class_attribute._type)
+        self.assertEqual('int', class_attribute.type_expr)
 
     def test_constructor_untyped(self):
         class_attribute = InstanceAttribute(name='attribute2')
         self.assertIsInstance(class_attribute, Attribute)
         self.assertIsInstance(class_attribute, InstanceAttribute)
         self.assertEqual('attribute2', class_attribute.name)
-        self.assertIsNone(class_attribute._type)
+        self.assertIsNone(class_attribute.type_expr)
 
     def test_as_puml_typed(self):
         expected_result = 'attribute1: int'

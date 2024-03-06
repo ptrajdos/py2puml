@@ -5,9 +5,10 @@ from ast import parse, AST, get_source_segment
 from inspect import getsource
 from textwrap import dedent
 
+import pytest
 from pytest import mark
 
-from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor, SignatureVariablesCollector, ClassVisitor, BaseClassVisitor, ModuleVisitor, DecoratorVisitor
+from py2puml.parsing.astvisitors import AssignedVariablesCollector, TypeVisitor, SignatureVariablesCollector, ClassVisitor, BaseClassVisitor, ModuleVisitor, DecoratorVisitor, ConstructorVisitor, AssignmentVisitor, AttributeAssignment
 from py2puml.domain.umlclass import ClassAttribute, InstanceAttribute, ImportStatement
 from tests.asserts.variable import assert_Variable
 from tests.modules.withmethods import withmethods, withinheritedmethods
@@ -145,6 +146,173 @@ def test_AssignedVariablesCollector_multiple_assignments_separate_variable_from_
             assert variable.type_expr == None, 'Python does not allow type annotation in multiple assignment'
 
 
+class TestAssignmentVisitor(unittest.TestCase):
+
+    def test_simple(self):
+        source_code = 'self.x = xx'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        expected_attribute = InstanceAttribute(name='x')
+        self.assertEqual(expected_attribute, visitor.instance_attribute)
+        expected_names = ['xx']
+        self.assertCountEqual(expected_names, visitor.variable_names)
+
+    def test_annotated(self):
+        source_code = 'self.x: int = xx'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        expected_attribute = InstanceAttribute(name='x')
+        self.assertEqual(expected_attribute, visitor.instance_attribute)
+        expected_names = ['xx']
+        self.assertCountEqual(expected_names, visitor.variable_names)
+
+    def test_binary_operator(self):
+        source_code = 'self.x = xx + 2'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        expected_attribute = InstanceAttribute(name='x')
+        self.assertEqual(expected_attribute, visitor.instance_attribute)
+        expected_names = ['xx']
+        self.assertCountEqual(expected_names, visitor.variable_names)
+
+    def test_multiple_name(self):
+        source_code = 'self.x = xx + a'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        expected_attribute = InstanceAttribute(name='x')
+        self.assertEqual(expected_attribute, visitor.instance_attribute)
+        expected_names = ['xx', 'a']
+        self.assertCountEqual(expected_names, visitor.variable_names)
+
+    def test_without_attribute(self):
+        source_code = 'a = 2'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        self.assertIsNone(visitor.instance_attribute)
+
+    def test_without_attribute_2(self):
+        source_code = 'a: int = 2'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        self.assertIsNone(visitor.instance_attribute)
+
+    def test_multiple_assignment_1(self):
+        source_code = 'self.x, a = xx, 2'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        expected_attribute = InstanceAttribute(name='x')
+        self.assertEqual(expected_attribute, visitor.instance_attribute)
+        expected_names = ['xx']
+        self.assertCountEqual(expected_names, visitor.variable_names)
+
+    def test_multiple_assignment_2(self):
+        source_code = 'self.x, self.y = xx + a, b + 2'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        assignment_1 = AttributeAssignment(instance_attribute=InstanceAttribute(name='x'), variable_names=['xx', 'a '])
+        assignment_2 = AttributeAssignment(instance_attribute=InstanceAttribute(name='y'), variable_names=['b '])
+        self.assertEqual([assignment_1, assignment_2], visitor.attribute_assignments)
+
+
+class TestConstructorVisitor2(unittest.TestCase):
+
+    def test_attribute(self):
+        source_code = 'def __init__(self, xx):\n    self.x = xx + 1\n    a = xx + self.x -2'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = ConstructorVisitor()
+        visitor.visit(node)
+        expected_attributes = [InstanceAttribute(name='x')]
+        actual_attributes = list(visitor.instance_attributes.values())
+        self.assertCountEqual(expected_attributes, actual_attributes)
+
+    def test_attribute_with_type(self):
+        source_code = 'def __init__(self, xx: int):\n    a = 2\n    self.x = xx + a'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = ConstructorVisitor()
+        visitor.visit(node)
+        expected_attributes = [InstanceAttribute(name='x', type_expr='int')]
+        actual_attributes = list(visitor.instance_attributes.values())
+        self.assertCountEqual(expected_attributes, actual_attributes)
+
+    def test_attribute_with_annotation(self):
+        source_code = 'def __init__(self, xx):\n    self.x: int = xx\n    a = 2'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = ConstructorVisitor()
+        visitor.visit(node)
+        expected_attributes = [InstanceAttribute(name='x', type_expr='int')]
+        actual_attributes = list(visitor.instance_attributes.values())
+        self.assertCountEqual(expected_attributes, actual_attributes)
+
+    def test_multiple_attributes(self):
+        source_code = 'def __init__(self, xx: int, yy: str):\n    self.x, self.y = xx, yy + 1'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = ConstructorVisitor()
+        visitor.visit(node)
+        expected_attributes = [InstanceAttribute(name='x', type_expr='int'), InstanceAttribute(name='y', type_expr='str')]
+        actual_attributes = list(visitor.instance_attributes.values())
+        self.assertCountEqual(expected_attributes, actual_attributes)
+
+
+class TestAssignmentVisitor(unittest.TestCase):
+
+    def test_attribute_not_annotated(self):
+        source_code = 'self.x = xx + a'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        expected_assignments = [AttributeAssignment(InstanceAttribute('x'), ['xx', 'a'])]
+        self.assertCountEqual(expected_assignments, visitor.attribute_assignments)
+
+    def test_variable(self):
+        source_code = 'a = 2'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        self.assertFalse(visitor.attribute_assignments)
+
+    def test_attribute_annotated(self):
+        source_code = 'self.x: int = xx'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        expected_assignments = [AttributeAssignment(InstanceAttribute('x', 'int'), ['xx'])]
+        self.assertCountEqual(expected_assignments, visitor.attribute_assignments)
+
+    def test_multiple_attribute(self):
+        source_code = 'self.x, self.y = xx, yy + 1'
+        ast = parse(source_code)
+        node = ast.body[0]
+        visitor = AssignmentVisitor()
+        visitor.visit(node)
+        expected_assignments = [
+            AttributeAssignment(InstanceAttribute('x'), ['xx']),
+            AttributeAssignment(InstanceAttribute('y'), ['yy'])]
+        self.assertCountEqual(expected_assignments, visitor.attribute_assignments)
+
+
 class TestTypeVisitor(unittest.TestCase):
 
     def test_return_type_int(self):
@@ -164,6 +332,16 @@ class TestTypeVisitor(unittest.TestCase):
         visitor = TypeVisitor()
         actual_rtype = visitor.visit(node)
         expected_rtype = 'Tuple[float, str]'
+        self.assertEqual(expected_rtype, actual_rtype)
+
+    def test_return_type_compound_2(self):
+        """ Test non-nested compound datatype"""
+        source_code = 'def dummy_function() -> Tuple[float, withenum.TimeUnit]:\n     pass'
+        ast = parse(source_code)
+        node = ast.body[0].returns
+        visitor = TypeVisitor()
+        actual_rtype = visitor.visit(node)
+        expected_rtype = 'Tuple[float, TimeUnit]'
         self.assertEqual(expected_rtype, actual_rtype)
 
     def test_return_type_compound_nested(self):
@@ -186,6 +364,16 @@ class TestTypeVisitor(unittest.TestCase):
         expected_rtype = 'Point'
         self.assertEqual(expected_rtype, actual_rtype)
 
+    def test_return_type_user_defined_2(self):
+        """ Test user-defined class datatype"""
+        source_code = 'def dummy_function() -> modules.withenum.TimeUnit:\n     pass'
+        ast = parse(source_code)
+        node = ast.body[0].returns
+        visitor = TypeVisitor()
+        actual_rtype = visitor.visit(node)
+        expected_rtype = 'TimeUnit'
+        self.assertEqual(expected_rtype, actual_rtype)
+
 
 class TestClassVisitor(unittest.TestCase):
 
@@ -198,15 +386,15 @@ class TestClassVisitor(unittest.TestCase):
         self.assertEqual('Point', visitor.class_name)
 
         expected_attributes = [
-            ClassAttribute(name='PI', _type='float'),
+            ClassAttribute(name='PI', type_expr='float'),
             ClassAttribute(name='origin'),
-            InstanceAttribute(name='coordinates', _type='Coordinates'),
-            InstanceAttribute(name='day_unit', _type='TimeUnit'),
-            InstanceAttribute(name='hour_unit', _type='TimeUnit'),
-            InstanceAttribute(name='time_resolution', _type='Tuple[str, TimeUnit]'),
-            InstanceAttribute(name='x', _type='int'),
-            InstanceAttribute(name='y', _type='Tuple[bool]'),
-            InstanceAttribute(name='description', _type='str')]
+            InstanceAttribute(name='coordinates', type_expr='Coordinates'),
+            InstanceAttribute(name='day_unit', type_expr='TimeUnit'),
+            InstanceAttribute(name='hour_unit', type_expr='TimeUnit'),
+            InstanceAttribute(name='time_resolution', type_expr='Tuple[str, TimeUnit]'),
+            InstanceAttribute(name='x', type_expr='int'),
+            InstanceAttribute(name='y', type_expr='Tuple[bool]'),
+            InstanceAttribute(name='description', type_expr='str')]
         actual_attributes = visitor.attributes
         self.assertCountEqual(expected_attributes, actual_attributes)
 
@@ -224,7 +412,7 @@ class TestClassVisitor(unittest.TestCase):
 
         self.assertEqual('ThreeDimensionalPoint', visitor.class_name)
 
-        expected_attributes = [InstanceAttribute(name='z', _type='float')]
+        expected_attributes = [InstanceAttribute(name='z', type_expr='float')]
         actual_attributes = visitor.attributes
         self.assertCountEqual(expected_attributes, actual_attributes)
 
@@ -243,7 +431,7 @@ class TestClassVisitor(unittest.TestCase):
 
         self.assertEqual('ThreeDimensionalCoordinates', visitor.class_name)
 
-        expected_attributes = [InstanceAttribute(name='z', _type='float')]
+        expected_attributes = [InstanceAttribute(name='z', type_expr='float')]
         actual_attributes = visitor.attributes
         self.assertCountEqual(expected_attributes, actual_attributes)
 

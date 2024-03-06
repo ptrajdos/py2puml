@@ -558,13 +558,13 @@ class InheritanceRelation(Relation):
 
 class Attribute(ABC):
 
-    def __init__(self, name, _type=None):
+    def __init__(self, name, type_expr=None):
         self.name = name
-        self._type = _type
+        self.type_expr = type_expr
 
     def __eq__(self, other):
         if isinstance(other, Attribute):
-            return self.name == other.name and self._type == other._type
+            return self.name == other.name and self.type_expr == other.type_expr
         return False
 
     def __ne__(self, other):
@@ -583,8 +583,8 @@ class ClassAttribute(Attribute):
 
     @property
     def as_puml(self):
-        if self._type:
-            return f'{self.name}: {self._type} {{static}}'
+        if self.type_expr:
+            return f'{self.name}: {self.type_expr} {{static}}'
         else:
             return f'{self.name} {{static}}'
 
@@ -593,10 +593,17 @@ class InstanceAttribute(Attribute):
 
     @property
     def as_puml(self):
-        if self._type:
-            return f'{self.name}: {self._type}'
+        if self.type_expr:
+            return f'{self.name}: {self.type_expr}'
         else:
             return f'{self.name}'
+
+
+@dataclass
+class Argument:
+    name: str
+    type_expr: str
+    datatype = None
 
 
 class ClassDiagram:
