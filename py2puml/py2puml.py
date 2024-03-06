@@ -1,7 +1,8 @@
 from typing import Iterable
 from pathlib import Path
 
-from py2puml.domain.umlclass import PythonPackage, ClassDiagram, PackageType
+from py2puml.package import PackageType, PythonPackage
+from py2puml.diagram import ClassDiagram
 
 
 def py2puml(domain_path: str, domain_module: str) -> Iterable[str]:
@@ -12,7 +13,7 @@ def py2puml(domain_path: str, domain_module: str) -> Iterable[str]:
         package_type = PackageType.REGULAR
     else:
         package_type = PackageType.NAMESPACE
-    package = PythonPackage(path=domain_path, name=package_name, fully_qualified_name=domain_module, _type=package_type)
+    package = PythonPackage(path=domain_path, name=package_name, fully_qualified_name=domain_module, type_expr=package_type)
 
     package.walk()
     package.resolve_relative_imports()
