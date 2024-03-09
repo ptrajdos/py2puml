@@ -1,11 +1,10 @@
-import unittest
 from ast import parse
 
 from py2puml.methods import DecoratorVisitor, TypeVisitor, AssignmentVisitor, AttributeAssignment, ConstructorVisitor
 from py2puml.classes import InstanceAttribute
 
 
-class TestDecoratorVisitor(unittest.TestCase):
+class TestDecoratorVisitor:
 
     def test_visit(self):
         source_code = '@staticmethod\nclass DummyClass:\n    pass'
@@ -13,7 +12,7 @@ class TestDecoratorVisitor(unittest.TestCase):
         decorator_node = ast.body[0].decorator_list[0]
         visitor = DecoratorVisitor()
         visitor.visit(decorator_node)
-        self.assertEqual('staticmethod', visitor.decorator_type)
+        assert 'staticmethod' == visitor.decorator_type
 
     def test_visit_2(self):
         source_code = '@unittest.mock.patch\nclass DummyClass:\n    pass'
@@ -21,10 +20,10 @@ class TestDecoratorVisitor(unittest.TestCase):
         decorator_node = ast.body[0].decorator_list[0]
         visitor = DecoratorVisitor()
         visitor.visit(decorator_node)
-        self.assertEqual('unittest.mock.patch', visitor.decorator_type)
+        assert 'unittest.mock.patch' == visitor.decorator_type
 
 
-class TestConstructorVisitor2(unittest.TestCase):
+class TestConstructorVisitor2:
 
     def test_attribute(self):
         source_code = 'def __init__(self, xx):\n    self.x = xx + 1\n    a = xx + self.x -2'
@@ -34,7 +33,7 @@ class TestConstructorVisitor2(unittest.TestCase):
         visitor.visit(node)
         expected_attributes = [InstanceAttribute(name='x')]
         actual_attributes = list(visitor.instance_attributes.values())
-        self.assertCountEqual(expected_attributes, actual_attributes)
+        assert expected_attributes == actual_attributes
 
     def test_attribute_with_type(self):
         source_code = 'def __init__(self, xx: int):\n    a = 2\n    self.x = xx + a'
@@ -44,7 +43,7 @@ class TestConstructorVisitor2(unittest.TestCase):
         visitor.visit(node)
         expected_attributes = [InstanceAttribute(name='x', type_expr='int')]
         actual_attributes = list(visitor.instance_attributes.values())
-        self.assertCountEqual(expected_attributes, actual_attributes)
+        assert expected_attributes == actual_attributes
 
     def test_attribute_with_annotation(self):
         source_code = 'def __init__(self, xx):\n    self.x: int = xx\n    a = 2\n    self.y = 3'
@@ -52,9 +51,10 @@ class TestConstructorVisitor2(unittest.TestCase):
         node = ast.body[0]
         visitor = ConstructorVisitor()
         visitor.visit(node)
-        expected_attributes = [InstanceAttribute(name='x', type_expr='int'), InstanceAttribute(name='y', type_expr=None)]
+        expected_attributes = [InstanceAttribute(name='x', type_expr='int'),
+                               InstanceAttribute(name='y', type_expr=None)]
         actual_attributes = list(visitor.instance_attributes.values())
-        self.assertCountEqual(expected_attributes, actual_attributes)
+        assert expected_attributes == actual_attributes
 
     def test_multiple_attributes(self):
         source_code = 'def __init__(self, xx: int, yy: str):\n    self.x, self.y = xx, yy + 1'
@@ -62,12 +62,13 @@ class TestConstructorVisitor2(unittest.TestCase):
         node = ast.body[0]
         visitor = ConstructorVisitor()
         visitor.visit(node)
-        expected_attributes = [InstanceAttribute(name='x', type_expr='int'), InstanceAttribute(name='y', type_expr='str')]
+        expected_attributes = [InstanceAttribute(name='x', type_expr='int'),
+                               InstanceAttribute(name='y', type_expr='str')]
         actual_attributes = list(visitor.instance_attributes.values())
-        self.assertCountEqual(expected_attributes, actual_attributes)
+        assert expected_attributes == actual_attributes
 
 
-class TestAssignmentVisitor(unittest.TestCase):
+class TestAssignmentVisitor:
 
     def test_attribute_not_annotated(self):
         source_code = 'self.x = xx + a'
@@ -76,7 +77,7 @@ class TestAssignmentVisitor(unittest.TestCase):
         visitor = AssignmentVisitor()
         visitor.visit(node)
         expected_assignments = [AttributeAssignment(InstanceAttribute('x'), ['xx', 'a'])]
-        self.assertCountEqual(expected_assignments, visitor.attribute_assignments)
+        assert expected_assignments == visitor.attribute_assignments
 
     def test_variable(self):
         source_code = 'a = 2'
@@ -84,7 +85,7 @@ class TestAssignmentVisitor(unittest.TestCase):
         node = ast.body[0]
         visitor = AssignmentVisitor()
         visitor.visit(node)
-        self.assertFalse(visitor.attribute_assignments)
+        assert not visitor.attribute_assignments
 
     def test_variable_annotated(self):
         source_code = 'a: int = 2'
@@ -92,7 +93,7 @@ class TestAssignmentVisitor(unittest.TestCase):
         node = ast.body[0]
         visitor = AssignmentVisitor()
         visitor.visit(node)
-        self.assertFalse(visitor.attribute_assignments)
+        assert not visitor.attribute_assignments
 
     def test_attribute_annotated(self):
         source_code = 'self.x: int = xx'
@@ -101,7 +102,7 @@ class TestAssignmentVisitor(unittest.TestCase):
         visitor = AssignmentVisitor()
         visitor.visit(node)
         expected_assignments = [AttributeAssignment(InstanceAttribute('x', 'int'), ['xx'])]
-        self.assertCountEqual(expected_assignments, visitor.attribute_assignments)
+        assert expected_assignments == visitor.attribute_assignments
 
     def test_multiple_attribute(self):
         source_code = 'self.x, self.y = xx, yy + 1'
@@ -112,7 +113,7 @@ class TestAssignmentVisitor(unittest.TestCase):
         expected_assignments = [
             AttributeAssignment(InstanceAttribute('x'), ['xx']),
             AttributeAssignment(InstanceAttribute('y'), ['yy'])]
-        self.assertCountEqual(expected_assignments, visitor.attribute_assignments)
+        assert expected_assignments == visitor.attribute_assignments
 
     def test_attribute_name(self):
         """ Test multiple assignment with a mix of Attribute and Name AST nodes."""
@@ -124,7 +125,7 @@ class TestAssignmentVisitor(unittest.TestCase):
         expected_assignments = [
             AttributeAssignment(InstanceAttribute('x'), ['xx']),
             AttributeAssignment(InstanceAttribute('y'), ['yy'])]
-        self.assertCountEqual(expected_assignments, visitor.attribute_assignments)
+        assert expected_assignments == visitor.attribute_assignments
 
     def test_attributes(self):
         """ Test multiple assignment with Attribute nodes, both instance variables and variables. """
@@ -136,10 +137,10 @@ class TestAssignmentVisitor(unittest.TestCase):
         expected_assignments = [
             AttributeAssignment(InstanceAttribute('x'), ['xx']),
             AttributeAssignment(InstanceAttribute('y'), ['yy'])]
-        self.assertCountEqual(expected_assignments, visitor.attribute_assignments)
+        assert expected_assignments == visitor.attribute_assignments
 
 
-class TestTypeVisitor(unittest.TestCase):
+class TestTypeVisitor:
 
     def test_return_type_int(self):
         source_code = 'def dummy_function() -> int:\n     pass'
@@ -148,7 +149,7 @@ class TestTypeVisitor(unittest.TestCase):
         visitor = TypeVisitor()
         actual_rtype = visitor.visit(node)
         expected_rtype = 'int'
-        self.assertEqual(expected_rtype, actual_rtype)
+        assert expected_rtype == actual_rtype
 
     def test_return_type_compound(self):
         """ Test non-nested compound datatype"""
@@ -158,7 +159,7 @@ class TestTypeVisitor(unittest.TestCase):
         visitor = TypeVisitor()
         actual_rtype = visitor.visit(node)
         expected_rtype = 'Tuple[float, str]'
-        self.assertEqual(expected_rtype, actual_rtype)
+        assert expected_rtype == actual_rtype
 
     def test_return_type_compound_2(self):
         """ Test non-nested compound datatype"""
@@ -168,7 +169,7 @@ class TestTypeVisitor(unittest.TestCase):
         visitor = TypeVisitor()
         actual_rtype = visitor.visit(node)
         expected_rtype = 'Tuple[float, TimeUnit]'
-        self.assertEqual(expected_rtype, actual_rtype)
+        assert expected_rtype == actual_rtype
 
     def test_return_type_compound_nested(self):
         """ Test nested compound datatype"""
@@ -178,7 +179,7 @@ class TestTypeVisitor(unittest.TestCase):
         visitor = TypeVisitor()
         actual_rtype = visitor.visit(node)
         expected_rtype = 'Tuple[float, Dict[str, List[bool]]]'
-        self.assertEqual(expected_rtype, actual_rtype)
+        assert expected_rtype == actual_rtype
 
     def test_return_type_user_defined(self):
         """ Test user-defined class datatype"""
@@ -188,7 +189,7 @@ class TestTypeVisitor(unittest.TestCase):
         visitor = TypeVisitor()
         actual_rtype = visitor.visit(node)
         expected_rtype = 'Point'
-        self.assertEqual(expected_rtype, actual_rtype)
+        assert expected_rtype == actual_rtype
 
     def test_return_type_user_defined_2(self):
         """ Test user-defined class datatype"""
@@ -198,4 +199,4 @@ class TestTypeVisitor(unittest.TestCase):
         visitor = TypeVisitor()
         actual_rtype = visitor.visit(node)
         expected_rtype = 'TimeUnit'
-        self.assertEqual(expected_rtype, actual_rtype)
+        assert expected_rtype == actual_rtype

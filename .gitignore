@@ -8,3 +8,5 @@ dist/
 .coverage
 # directory where the PlantUML extension produced diagram files
 out/
+.idea/
+.tox/

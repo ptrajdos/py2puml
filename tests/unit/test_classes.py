@@ -1,6 +1,7 @@
-import unittest
 from ast import parse
 from inspect import getsource
+
+import pytest
 
 from py2puml.classes import ClassVisitor, BaseClassVisitor, ClassAttribute, InstanceAttribute, PythonClass
 from py2puml.methods import Method
@@ -10,11 +11,11 @@ from tests.modules.withnestednamespace.withonlyonesubpackage.underground import 
 from tests.modules.withmethods.withmethods import Point
 
 
-class TestPythonClass(unittest.TestCase):
+class TestPythonClass:
 
-    def setUp(self) -> None:
-
-        self.point_class = PythonClass(
+    @pytest.fixture(scope="function")
+    def point_class(self):
+        return PythonClass(
             name='Point',
             fully_qualified_name='tests.modules.withmethods.withmethods.Point',
             attributes=[
@@ -46,16 +47,16 @@ class TestPythonClass(unittest.TestCase):
 
     def test_from_type(self):
         _class = PythonClass.from_type(Point)
-        self.assertEqual('Point', _class.name)
-        self.assertEqual('tests.modules.withmethods.withmethods.Point', _class.fully_qualified_name)
+        assert 'Point' == _class.name
+        assert 'tests.modules.withmethods.withmethods.Point' == _class.fully_qualified_name
 
     def test_from_type_init_module(self):
         """ Test the from_type alternate constructor with a class initialized in a __init__ module """
         _class = PythonClass.from_type(Soil)
         expected_fqn = 'tests.modules.withnestednamespace.withonlyonesubpackage.underground.Soil'
-        self.assertEqual(expected_fqn, _class.fully_qualified_name)
+        assert expected_fqn == _class.fully_qualified_name
 
-    def test_as_puml(self):
+    def test_as_puml(self, point_class):
         expected_result = '''class tests.modules.withmethods.withmethods.Point {
   PI: float {static}
   origin {static}
@@ -71,12 +72,12 @@ class TestPythonClass(unittest.TestCase):
   int do_something(self, posarg_nohint, str posarg_hint, posarg_default)
 }\n'''
 
-        actual_result = self.point_class.as_puml
+        actual_result = point_class.as_puml
 
-        self.assertEqual(expected_result, actual_result)
+        assert expected_result == actual_result
 
 
-class TestClassVisitor(unittest.TestCase):
+class TestClassVisitor:
 
     def test_class_with_methods(self):
         class_source = getsource(withmethods.Point)
@@ -84,7 +85,7 @@ class TestClassVisitor(unittest.TestCase):
         visitor = ClassVisitor(withmethods.Point, 'tests.modules.withmethods')
         visitor.visit(class_ast)
 
-        self.assertEqual('Point', visitor.class_name)
+        assert 'Point' == visitor.class_name
 
         expected_attributes = [
             ClassAttribute(name='PI', type_expr='float'),
@@ -97,13 +98,13 @@ class TestClassVisitor(unittest.TestCase):
             InstanceAttribute(name='y', type_expr='Tuple[bool]'),
             InstanceAttribute(name='description', type_expr='str')]
         actual_attributes = visitor.attributes
-        self.assertCountEqual(expected_attributes, actual_attributes)
+        assert expected_attributes == actual_attributes
 
         expected_methods = ['from_values', 'get_coordinates', '__init__', 'do_something']
         actual_methods = [method.name for method in visitor.methods]
-        self.assertCountEqual(expected_methods, actual_methods)
+        assert expected_methods == actual_methods
 
-        self.assertEqual(0, len(visitor.parent_classes_pqn))
+        assert 0 == len(visitor.parent_classes_pqn)
 
     def test_class_with_inherited_methods(self):
         class_source = getsource(withinheritedmethods.ThreeDimensionalPoint)
@@ -111,18 +112,18 @@ class TestClassVisitor(unittest.TestCase):
         visitor = ClassVisitor(withinheritedmethods.ThreeDimensionalPoint, 'tests.modules.withmethods')
         visitor.visit(class_ast)
 
-        self.assertEqual('ThreeDimensionalPoint', visitor.class_name)
+        assert 'ThreeDimensionalPoint' == visitor.class_name
 
         expected_attributes = [InstanceAttribute(name='z', type_expr='float')]
         actual_attributes = visitor.attributes
-        self.assertCountEqual(expected_attributes, actual_attributes)
+        assert expected_attributes == actual_attributes
 
         expected_methods = ['__init__', 'move', 'check_positive']
         actual_methods = [method.name for method in visitor.methods]
-        self.assertCountEqual(expected_methods, actual_methods)
+        assert expected_methods == actual_methods
 
-        self.assertIn('Point', visitor.parent_classes_pqn)
-        self.assertEqual(1, len(visitor.parent_classes_pqn))
+        assert 'Point' in visitor.parent_classes_pqn
+        assert 1 == len(visitor.parent_classes_pqn)
 
     def test_class_with_inherited_methods_2(self):
         class_source = getsource(withinheritedmethods.ThreeDimensionalCoordinates)
@@ -130,18 +131,18 @@ class TestClassVisitor(unittest.TestCase):
         visitor = ClassVisitor(withinheritedmethods.ThreeDimensionalCoordinates, 'tests.modules.withmethods')
         visitor.visit(class_ast)
 
-        self.assertEqual('ThreeDimensionalCoordinates', visitor.class_name)
+        assert 'ThreeDimensionalCoordinates' == visitor.class_name
 
         expected_attributes = [InstanceAttribute(name='z', type_expr='float')]
         actual_attributes = visitor.attributes
-        self.assertCountEqual(expected_attributes, actual_attributes)
+        assert expected_attributes == actual_attributes
 
         expected_methods = ['__init__', 'move', 'check_negative']
         actual_methods = [method.name for method in visitor.methods]
-        self.assertCountEqual(expected_methods, actual_methods)
+        assert expected_methods == actual_methods
 
-        self.assertIn('withmethods.withmethods.Coordinates', visitor.parent_classes_pqn)
-        self.assertEqual(1, len(visitor.parent_classes_pqn))
+        assert 'withmethods.withmethods.Coordinates' in visitor.parent_classes_pqn
+        assert 1 == len(visitor.parent_classes_pqn)
 
     def test_dataclass(self):
         """ Test the ClassVisitor with a dataclass """
@@ -150,14 +151,13 @@ class TestClassVisitor(unittest.TestCase):
         visitor = ClassVisitor(withcomposition.Address, 'tests.modules.withcomposition')
         visitor.visit(module_ast.body[2])
 
-        self.assertEqual('Address', visitor.class_name)
+        assert 'Address' == visitor.class_name
         for attribute, expected_name in zip(visitor.attributes, ['street', 'zipcode', 'city']):
-            with self.subTest('Message', name=expected_name):
-                self.assertIsInstance(attribute, InstanceAttribute)
-                self.assertEqual(expected_name, attribute.name)
+            assert isinstance(attribute, InstanceAttribute)
+            assert expected_name == attribute.name
 
 
-class TestBaseClassVisitor(unittest.TestCase):
+class TestBaseClassVisitor:
 
     def test_name(self):
         source_code = 'class DerivedClass(BaseClass):\n    pass'
@@ -165,7 +165,7 @@ class TestBaseClassVisitor(unittest.TestCase):
         node = ast.body[0].bases[0]
         visitor = BaseClassVisitor()
         visitor.visit(node)
-        self.assertEqual('BaseClass', visitor.qualified_name)
+        assert 'BaseClass' == visitor.qualified_name
 
     def test_name_with_module(self):
         source_code = 'class DerivedClass(package.module.BaseClass):\n    pass'
@@ -173,4 +173,4 @@ class TestBaseClassVisitor(unittest.TestCase):
         node = ast.body[0].bases[0]
         visitor = BaseClassVisitor()
         visitor.visit(node)
-        self.assertEqual('package.module.BaseClass', visitor.qualified_name)
+        assert 'package.module.BaseClass' == visitor.qualified_name
