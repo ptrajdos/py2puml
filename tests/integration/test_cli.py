@@ -1,6 +1,7 @@
 from io import StringIO
-from subprocess import run, PIPE
+from subprocess import run, PIPE, check_output
 from typing import List
+from pathlib import Path
 
 from pytest import mark
 
@@ -10,6 +11,11 @@ from py2puml.py2puml import py2puml
 from tests import __version__, __description__, TESTS_PATH
 
 
+CURRENT_DIR = Path(__file__).parent
+TESTS_DIR = CURRENT_DIR.parent
+DATA_DIR = TESTS_DIR / "data"
+
+
 @mark.parametrize(
     'entrypoint', [
         ['py2puml'],
@@ -17,13 +23,13 @@ from tests import __version__, __description__, TESTS_PATH
     ]
 )
 def test_cli_consistency_with_the_default_configuration(entrypoint: List[str]):
-    command = entrypoint + ['py2puml/domain', 'py2puml.domain']
+    command = entrypoint + ['tests/modules/withmethods', 'tests.modules.withmethods']
     cli_stdout = run(command,
         stdout=PIPE, stderr=PIPE,
         text=True, check=True
     ).stdout
 
-    puml_content = py2puml('py2puml/domain', 'py2puml.domain')
+    puml_content = py2puml('tests/modules/withmethods', 'tests.modules.withmethods')
 
     assert ''.join(puml_content).strip() == cli_stdout.strip()
 
@@ -37,7 +43,7 @@ def test_cli_on_specific_working_directory():
         cwd='tests/modules'
     )
 
-    with open(TESTS_PATH / 'puml_files' / 'withrootnotincwd.puml', 'r', encoding='utf8') as expected_puml_file:
+    with open(DATA_DIR / 'withrootnotincwd.puml', 'r', encoding='utf8') as expected_puml_file:
         assert_multilines(
             # removes the last return carriage added by the stdout
             [line for line in StringIO(cli_process.stdout)][:-1],
