@@ -38,7 +38,7 @@ class PythonPackage:
     name: str
     fully_qualified_name: str
     depth: int = 0
-    type_expr: PackageType = PackageType.REGULAR
+    _type: PackageType = PackageType.REGULAR
     modules: List[PythonModule] = field(default_factory=list)
     subpackages: Dict[str, PythonPackage] = field(default_factory=dict)
     _parent_package: PythonPackage = None
@@ -74,11 +74,11 @@ class PythonPackage:
 
         init_filepath = path / '__init__.py'
         if init_filepath.is_file():
-            type_expr = PackageType.REGULAR
+            _type = PackageType.REGULAR
         else:
-            type_expr = PackageType.NAMESPACE
+            _type = PackageType.NAMESPACE
 
-        return PythonPackage(path=path, name=name, fully_qualified_name=fully_qualified_name, depth=0, type_expr=type_expr)
+        return PythonPackage(path=path, name=name, fully_qualified_name=fully_qualified_name, depth=0, _type=_type)
 
     def _add_module(self, module_fully_qualified_name: str, skip_empty: bool = False) -> None:
         """ Add a new module to a package from its name.
@@ -153,7 +153,7 @@ class PythonPackage:
         """
         self.all_packages[self.fully_qualified_name] = self
 
-        if self.type_expr == PackageType.NAMESPACE:
+        if self._type == PackageType.NAMESPACE:
             temp_init_filepath = Path(self.path) / '__init__.py'
             with open(temp_init_filepath, 'w'):
                 namespace_packages_names = find_namespace_packages(str(self.path))
@@ -168,7 +168,7 @@ class PythonPackage:
             else:
                 package = self
 
-            if package.type_expr == PackageType.REGULAR:
+            if package._type == PackageType.REGULAR:
                 self._add_module(f'{package.fully_qualified_name}.__init__', skip_empty=True)
 
             for _, name, is_pkg in iter_modules(path=[package.path]):
@@ -313,4 +313,3 @@ class PythonPackage:
             puml_str = '\n'.join(clean_lines) + '\n'
 
         return puml_str
-

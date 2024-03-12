@@ -96,24 +96,24 @@ class TestPythonPackage:
 
         assert 9 == len(package.modules)
         assert 5 == len(package.subpackages)
-        assert PackageType.NAMESPACE == package.type_expr
+        assert PackageType.NAMESPACE == package._type
         assert 0 == package.depth
 
         package_withsubdomain = package.subpackages['withsubdomain']
-        assert PackageType.REGULAR == package_withsubdomain.type_expr
+        assert PackageType.REGULAR == package_withsubdomain._type
         assert 2 == len(package_withsubdomain.modules)
         assert 1 == len(package_withsubdomain.subpackages)
         assert 1 == package_withsubdomain.depth
         assert 1 == len(package_withsubdomain.classes)
 
         package_subdomain = package_withsubdomain.subpackages['subdomain']
-        assert PackageType.REGULAR == package_subdomain.type_expr
+        assert PackageType.REGULAR == package_subdomain._type
         assert 1 == len(package_subdomain.modules)
         assert 0 == len(package_subdomain.subpackages)
         assert 2 == package_subdomain.depth
 
         package_withmethods = package.subpackages['withmethods']
-        assert PackageType.NAMESPACE == package_withmethods.type_expr
+        assert PackageType.NAMESPACE == package_withmethods._type
         assert 2 == len(package_withmethods.modules)
         assert 0 == len(package_withmethods.subpackages)
         assert 1 == package_withmethods.depth
@@ -123,47 +123,47 @@ class TestPythonPackage:
         package = PythonPackage.from_imported_package(tests.modules.withnestednamespace)
         package.walk()
 
-        assert PackageType.NAMESPACE == package.type_expr
+        assert PackageType.NAMESPACE == package._type
         assert 5 == len(package.subpackages)
         assert 1 == len(package.modules)
 
         pkg_branches = package.subpackages['branches']
-        assert PackageType.NAMESPACE == pkg_branches.type_expr
+        assert PackageType.NAMESPACE == pkg_branches._type
         assert 1 == len(pkg_branches.modules)
         assert 0 == len(pkg_branches.subpackages)
 
         pkg_nomoduleroot = package.subpackages['nomoduleroot']
-        assert PackageType.REGULAR == pkg_nomoduleroot.type_expr
+        assert PackageType.REGULAR == pkg_nomoduleroot._type
         assert 0 == len(pkg_nomoduleroot.modules)
         assert 1 == len(pkg_nomoduleroot.subpackages)
 
-        assert PackageType.NAMESPACE == package.subpackages['trunks'].type_expr
+        assert PackageType.NAMESPACE == package.subpackages['trunks']._type
         assert 1 == len(package.subpackages['trunks'].modules)
         assert 0 == len(package.subpackages['trunks'].subpackages)
 
         package_withonlyonesubpackage = package.subpackages['withonlyonesubpackage']
-        assert PackageType.REGULAR == package_withonlyonesubpackage.type_expr
+        assert PackageType.REGULAR == package_withonlyonesubpackage._type
         assert 0 == len(package_withonlyonesubpackage.modules)
         assert 1 == len(package_withonlyonesubpackage.subpackages)
 
         pkg_underground = package_withonlyonesubpackage.subpackages['underground']
-        assert PackageType.REGULAR == pkg_underground.type_expr
+        assert PackageType.REGULAR == pkg_underground._type
         assert 1 == len(pkg_underground.modules)
         assert 1 == len(pkg_underground.subpackages)
         assert 1 == len(pkg_underground.classes)
 
         pkg_roots = pkg_underground.subpackages['roots']
-        assert PackageType.NAMESPACE == pkg_roots.type_expr
+        assert PackageType.NAMESPACE == pkg_roots._type
         assert 1 == len(pkg_roots.modules)
         assert 0 == len(pkg_roots.subpackages)
 
         package_withoutumlitemroot = package.subpackages['withoutumlitemroot']
-        assert PackageType.REGULAR == package_withoutumlitemroot.type_expr
+        assert PackageType.REGULAR == package_withoutumlitemroot._type
         assert 0 == len(package_withoutumlitemroot .modules)
         assert 1 == len(package_withoutumlitemroot .subpackages)
 
         package_withoutumlitemleaf = package_withoutumlitemroot.subpackages['withoutumlitemleaf']
-        assert PackageType.NAMESPACE == package_withoutumlitemleaf.type_expr
+        assert PackageType.NAMESPACE == package_withoutumlitemleaf._type
         assert 1 == len(package_withoutumlitemleaf .modules)
         assert 0 == len(package_withoutumlitemleaf .subpackages)
 

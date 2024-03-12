@@ -1,17 +1,50 @@
 import ast
 from typing import Dict, List, Tuple
 from ast import (
-    NodeVisitor, arg, ClassDef,
-    FunctionDef, Assign, AnnAssign, ImportFrom,
+    NodeVisitor, arg,
+    FunctionDef, Assign, AnnAssign,
     Attribute, Name, Subscript
 )
 from collections import namedtuple
-from importlib import import_module
 from dataclasses import dataclass, field
 
-import py2puml.domain.umlclass as umlclass
+from py2puml.attribute import InstanceAttribute
 
 Variable = namedtuple('Argument', ['id', 'type_expr'])
+
+
+@dataclass
+class Argument:
+    name: str
+    type_expr: str
+    datatype = None
+
+
+@dataclass
+class Method:
+    name: str
+    arguments: Dict = field(default_factory=dict)
+    is_static: bool = False
+    is_class: bool = False
+    is_getter: bool = False
+    return_type: str = None
+
+    @property
+    def as_puml(self):
+        items = []
+        if self.is_static:
+            items.append('{static}')
+        if self.return_type:
+            items.append(self.return_type)
+        items.append(f'{self.name}({self.signature})')
+        return ' '.join(items)
+
+    @property
+    def signature(self):
+        if self.arguments:
+            return ', '.join([f'{arg_type} {arg_name}' if arg_type else f'{arg_name}' for arg_name, arg_type in
+                              self.arguments.items()])
+        return ''
 
 
 class SignatureVariablesCollector(NodeVisitor):
@@ -40,74 +73,6 @@ class SignatureVariablesCollector(NodeVisitor):
         self.variables.append(variable)
 
 
-class ClassVisitor(NodeVisitor):
-
-    def __init__(self, class_type, root_fqn, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.class_type = class_type
-        self.root_fqn = root_fqn
-        self.class_name: str = None
-        self.attributes = []
-        self.methods: List[umlclass.Method] = []
-        self.parent_classes_pqn = []
-        self.decorators = []
-        self.is_dataclass = False
-
-    def visit_Assign(self, node: Assign):
-        """ Retrieve class attribute """
-        for target in node.targets:
-            if self.is_dataclass:
-                attribute = umlclass.InstanceAttribute(name=target.id)
-            else:
-                attribute = umlclass.ClassAttribute(name=target.id)
-            self.attributes.append(attribute)
-
-    def visit_AnnAssign(self, node: AnnAssign):
-        """ Retrieve annotated class attribute """
-        type_visitor = TypeVisitor()
-        _type = type_visitor.visit(node.annotation)
-        if self.is_dataclass:
-            attribute = umlclass.InstanceAttribute(name=node.target.id, type_expr=_type)
-        else:
-            attribute = umlclass.ClassAttribute(name=node.target.id, type_expr=_type)
-        self.attributes.append(attribute)
-
-    def visit_ClassDef(self, node: ClassDef):
-        """ Retrieve name of the class and base class if any """
-        self.class_name = node.name
-        if node.bases:
-            for base in node.bases:
-                base_visitor = BaseClassVisitor()
-                base_visitor.visit(base)
-                self.parent_classes_pqn.append(base_visitor.qualified_name)
-
-        if node.decorator_list:
-            for decorator_node in node.decorator_list:
-                visitor = DecoratorVisitor()
-                visitor.visit(decorator_node)
-                self.decorators.append(visitor.decorator_type)
-                if visitor.decorator_type == 'dataclass':
-                    self.is_dataclass = True
-
-        self.generic_visit(node)
-
-    def visit_FunctionDef(self, node: FunctionDef):
-        method_visitor = MethodVisitor()
-        method_visitor.visit(node)
-        method = method_visitor.method
-        if method.is_getter:
-            attribute = umlclass.InstanceAttribute(name=method.name, type_expr=method.return_type)
-            self.attributes.append(attribute)
-        else:
-            self.methods.append(method)
-
-        if node.name == '__init__' and True:
-            constructor_visitor = ConstructorVisitor()
-            constructor_visitor.visit(node)
-            for attribute in constructor_visitor.instance_attributes.values():
-                self.attributes.append(attribute)
-
-
 class DecoratorVisitor(NodeVisitor):
 
     def __init__(self, *args, **kwargs):
@@ -124,35 +89,6 @@ class DecoratorVisitor(NodeVisitor):
 
     @property
     def decorator_type(self):
-        return '.'.join(self.elements)
-
-
-class BaseClassVisitor(NodeVisitor):
-
-    """ Node Visitor class for base class definition
-
-     This visitor is used for walking 'base' field of class definition node ClassDef. The name of the base class is
-     returned by the class property 'qualified_name'. Handles partially defined base class name, e.g. the class
-     definition 'class DerivedClassName(modname.BaseClassName):' will return 'modname.BaseClassName' as
-     'qualified_name'.
-     """
-
-    def __init__(self):
-        """ Class constructor
-
-        Elements of the qualified name are collected in a list """
-        self.elements = []
-
-    def visit_Name(self, node: Name):
-        self.elements.append(node.id)
-
-    def visit_Attribute(self, node: Attribute):
-        """ Recursive call with 'generic_visit' so that Attributes are traversed """
-        self.generic_visit(node)
-        self.elements.append(node.attr)
-
-    @property
-    def qualified_name(self):
         return '.'.join(self.elements)
 
 
@@ -201,7 +137,7 @@ class MethodVisitor(NodeVisitor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.variables_namespace: List[Variable] = []
-        self.method: umlclass.Method
+        self.method: Method
         self.decorators = []
 
     def visit_FunctionDef(self, node: FunctionDef):
@@ -219,7 +155,7 @@ class MethodVisitor(NodeVisitor):
         arguments_collector.visit(node)
         self.variables_namespace = arguments_collector.variables
 
-        self.method = umlclass.Method(name=node.name, is_static=is_static, is_class=is_class, is_getter=is_getter)
+        self.method = Method(name=node.name, is_static=is_static, is_class=is_class, is_getter=is_getter)
 
         for argument in arguments_collector.variables:
             if argument.id == arguments_collector.class_self_id:
@@ -256,8 +192,8 @@ class ConstructorVisitor(NodeVisitor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name: str = None
-        self.arguments: List[umlclass.Argument] = []
-        self.instance_attributes: Dict[umlclass.InstanceAttribute] = {}
+        self.arguments: List[Argument] = []
+        self.instance_attributes: Dict[InstanceAttribute] = {}
 
     def visit_FunctionDef(self, node: FunctionDef):
         self.name = node.name
@@ -269,7 +205,7 @@ class ConstructorVisitor(NodeVisitor):
             type_visitor = TypeVisitor()
             type_expr = type_visitor.visit(node.annotation)
         if not node.arg == 'self':  # FIXME: add support for other instance name than 'self'
-            argument = umlclass.Argument(name=node.arg, type_expr=type_expr)
+            argument = Argument(name=node.arg, type_expr=type_expr)
             self.arguments.append(argument)
 
     def visit_Assign(self, node: Assign):
@@ -320,6 +256,7 @@ class AssignmentVisitor(NodeVisitor):
         self._index = 0
         self._visiting_target = False
         self._visiting_value = False
+        self._attr_indexes = []
 
     def visit_AnnAssign(self, node: AnnAssign):
         self._visiting_target = True
@@ -328,7 +265,8 @@ class AssignmentVisitor(NodeVisitor):
 
         type_visitor = TypeVisitor()
         type_expr = type_visitor.visit(node.annotation)
-        self.attribute_assignments[-1].instance_attribute.type_expr = type_expr
+        if self.attribute_assignments:
+            self.attribute_assignments[-1].instance_attribute.type_expr = type_expr
 
         self._visiting_value = True
         self.visit(node.value)
@@ -345,18 +283,31 @@ class AssignmentVisitor(NodeVisitor):
     def visit_Attribute(self, node: Attribute):
         if type(node.value) == ast.Name:
             if node.value.id == 'self':  # FIXME: add support for other instance name than 'self'
-                attribute = umlclass.InstanceAttribute(name=node.attr)
+                if len(self._attr_indexes) > 0:
+                    self._attr_indexes[self._index] = len(self.attribute_assignments)
+                attribute = InstanceAttribute(name=node.attr)
                 assignment = AttributeAssignment(instance_attribute=attribute)
                 self.attribute_assignments.append(assignment)
+                return
 
     def visit_Name(self, node: Name):
         if self._visiting_value and self.attribute_assignments:
             self.attribute_assignments[self._index].variable_names.append(node.id)
 
     def visit_Tuple(self, node: Tuple):
-        for index, element in enumerate(node.elts):
-            self._index = index
-            self.visit(element)
+        if self._visiting_target:
+            for index, element in enumerate(node.elts):
+                self._attr_indexes.append(None)
+                self._index = index
+                self.visit(element)
+        elif self._visiting_value:
+            for index, element in enumerate(node.elts):
+                if len(self._attr_indexes) > 0:
+                    self._index = self._attr_indexes[index]
+                    if self._index is not None:
+                        self.visit(element)
+                else:
+                    self.visit(element)
 
 
 @dataclass
@@ -375,38 +326,8 @@ class AttributeAssignment:
         >>> attr_assignment.variable_names
         ['a', 'b']
     """
-    instance_attribute: umlclass.InstanceAttribute
+    instance_attribute: InstanceAttribute
     variable_names: List[str] = field(default_factory=list)
 
 
-class ModuleVisitor(NodeVisitor):
 
-    def __init__(self, root_fqn):
-        self.classes: List[umlclass.PythonClass] = []
-        self.enums = []
-        self.namedtuples = []
-        self.root_fqn = root_fqn
-        self.imports: List[umlclass.ImportStatement] = []
-
-    def visit_ClassDef(self, node: ClassDef):
-        class_type = getattr(import_module(self.root_fqn), node.name)
-        _class = umlclass.PythonClass.from_type(class_type)
-        visitor = ClassVisitor(class_type, self.root_fqn)
-        visitor.visit(node)
-        for attribute in visitor.attributes:
-            _class.attributes.append(attribute)
-        for method in visitor.methods:
-            _class.methods.append(method)
-        for parent_class_pqn in visitor.parent_classes_pqn:
-            _class.base_classes[parent_class_pqn] = None
-        self.classes.append(_class)
-
-    def visit_ImportFrom(self, node: ImportFrom):
-        for name in node.names:
-            import_statement = umlclass.ImportStatement(
-                module_name=node.module,
-                name=name.name,
-                alias=name.asname,
-                level=node.level
-            )
-            self.imports.append(import_statement)

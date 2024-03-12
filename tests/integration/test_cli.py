@@ -1,5 +1,5 @@
 from io import StringIO
-from subprocess import run, PIPE, check_output
+from subprocess import run, PIPE
 from typing import List
 from pathlib import Path
 
@@ -8,7 +8,7 @@ from pytest import mark
 from py2puml.asserts import assert_multilines
 from py2puml.py2puml import py2puml
 
-from tests import __version__, __description__, TESTS_PATH
+from tests import __version__, __description__
 
 
 CURRENT_DIR = Path(__file__).parent
