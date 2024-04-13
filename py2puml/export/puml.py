@@ -55,7 +55,7 @@ def to_puml_content(diagram_name: str, uml_items: List[UmlItem], uml_relations: 
             )
             for uml_attr in uml_class.attributes:
                 yield PUML_ATTR_TPL.format(
-                    visibility=uml_visibility(member.name), 
+                    visibility=uml_visibility(uml_attr.name), 
                     attr_name=uml_attr.name,
                     attr_type=uml_attr.type,
                     staticity=FEATURE_STATIC if uml_attr.static else FEATURE_INSTANCE,
