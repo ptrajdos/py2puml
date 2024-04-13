@@ -2,7 +2,16 @@ from dataclasses import dataclass, field
 from typing import Dict, List
 
 from py2puml.domain.umlitem import UmlItem
+import re
 
+def uml_visibility(uml_attr_name:str):
+    if re.search("^__", uml_attr_name):
+        return '-'
+    
+    if re.search("^_", uml_attr_name):
+        return '#'
+    
+    return "+"
 
 @dataclass
 class UmlAttribute:
@@ -21,6 +30,7 @@ class UmlMethod:
 
     def represent_as_puml(self):
         items = []
+        items.append( uml_visibility(self.name))
         if self.is_static:
             items.append('{static}')
         if self.return_type:
