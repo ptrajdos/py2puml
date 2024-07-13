@@ -26,6 +26,7 @@ class UmlMethod:
     arguments: Dict = field(default_factory=dict)
     is_static: bool = False
     is_class: bool = False
+    is_abstract:bool = False
     return_type: str = None
 
     def represent_as_puml(self):
@@ -33,6 +34,8 @@ class UmlMethod:
         items.append( uml_visibility(self.name))
         if self.is_static:
             items.append('{static}')
+        if self.is_abstract:
+            items.append('{abstract}')
         if self.return_type:
             items.append(self.return_type)
         items.append(f'{self.name}({self.signature})')

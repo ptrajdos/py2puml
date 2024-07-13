@@ -1,4 +1,5 @@
 from ast import AnnAssign, Assign, Attribute, FunctionDef, Name, NodeVisitor, Subscript, arg, expr, get_source_segment
+import ast
 from collections import namedtuple
 from typing import Dict, List, Tuple, Type
 
@@ -124,8 +125,21 @@ class MethodVisitor(NodeVisitor):
 
     def visit_FunctionDef(self, node: FunctionDef):
         decorators = [decorator.id for decorator in node.decorator_list]
+        decorators = []
+        for decorator in node.decorator_list:
+            if isinstance(decorator, ast.Name):
+                # Simple decorator (e.g., @decorator1)
+                decorators.append(decorator.id)
+            elif isinstance(decorator, ast.Attribute):
+                # Attribute decorator (e.g., @module.decorator)
+                decorators.append(f"{decorator.value.id}.{decorator.attr}")
+            else:
+                pass 
+
+
         is_static = 'staticmethod' in decorators
         is_class = 'classmethod' in decorators
+        is_abstract = 'abstract' in decorators
         arguments_collector = SignatureArgumentsCollector(skip_self=is_static)
         arguments_collector.visit(node)
         self.variables_namespace = arguments_collector.arguments
