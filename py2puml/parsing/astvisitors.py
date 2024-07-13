@@ -124,7 +124,6 @@ class MethodVisitor(NodeVisitor):
         self.uml_method: UmlMethod
 
     def visit_FunctionDef(self, node: FunctionDef):
-        decorators = [decorator.id for decorator in node.decorator_list]
         decorators = []
         for decorator in node.decorator_list:
             if isinstance(decorator, ast.Name):
@@ -139,12 +138,12 @@ class MethodVisitor(NodeVisitor):
 
         is_static = 'staticmethod' in decorators
         is_class = 'classmethod' in decorators
-        is_abstract = 'abstract' in decorators
+        is_abstract = 'abc.abstractmethod' in decorators
         arguments_collector = SignatureArgumentsCollector(skip_self=is_static)
         arguments_collector.visit(node)
         self.variables_namespace = arguments_collector.arguments
 
-        self.uml_method = UmlMethod(name=node.name, is_static=is_static, is_class=is_class)
+        self.uml_method = UmlMethod(name=node.name, is_static=is_static, is_class=is_class, is_abstract=is_abstract)
 
         for argument in arguments_collector.arguments:
             if argument.id == arguments_collector.class_self_id:
